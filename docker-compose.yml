@@ -1,0 +1,47 @@
+# Fatia funcional: simulador -> MQTT (Mosquitto) -> backend (FastAPI + SQLite) -> dashboard
+# Subir:   docker compose up --build
+# Dashboard: http://localhost:8000
+
+services:
+  broker:
+    image: eclipse-mosquitto:2.0.18
+    container_name: moinho-broker
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - broker-dados:/mosquitto/data   # guarda sessoes persistentes e retained entre reinicios
+
+  backend:
+    build: ./backend
+    container_name: moinho-backend
+    environment:
+      MQTT_HOST: broker
+      MQTT_PORT: "1883"
+      DB_PATH: /dados/moinho.db
+      STALE_S: "5"
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-dados:/dados
+    depends_on:
+      - broker
+    restart: unless-stopped
+
+  simulador:
+    build: ./simulador
+    container_name: moinho-simulador
+    environment:
+      MQTT_HOST: broker
+      MQTT_PORT: "1883"
+      DEVICE_ID: moinho01
+    volumes:
+      - sim-estado:/app/estado   # contador de boot (seq) e arquivo de comando
+    depends_on:
+      - broker
+    restart: unless-stopped
+
+volumes:
+  broker-dados:
+  backend-dados:
+  sim-estado:
