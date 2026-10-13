@@ -153,7 +153,7 @@ function desenharGrafico(pontos, agora) {
   const W = cv.clientWidth, H = cv.clientHeight, dpr = window.devicePixelRatio || 1;
   cv.width = W * dpr; cv.height = H * dpr; ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, W, H);
-  const m = { e: 40, d: 10, t: 10, b: 22 }, janela = 180_000, fim = new Date(agora).getTime();
+  const m = { e: 40, d: 12, t: 12, b: 28 }, janela = 180_000, fim = new Date(agora).getTime();
   const x = (t) => m.e + (W - m.e - m.d) * (1 - (fim - t) / janela);
   const yMax = 150, y = (v) => m.t + (H - m.t - m.b) * (1 - v / yMax);
 
@@ -162,10 +162,24 @@ function desenharGrafico(pontos, agora) {
     ctx.beginPath(); ctx.moveTo(m.e, y(v)); ctx.lineTo(W - m.d, y(v)); ctx.stroke();
     ctx.fillText(v, 8, y(v) + 4);
   }
-  for (let s = 0; s <= 180; s += 60) ctx.fillText(s ? `-${s}s` : "agora", x(fim - s * 1000) - 14, H - 6);
+  for (let s = 0; s <= 180; s += 60) {
+    ctx.textAlign = s === 180 ? "left" : s === 0 ? "right" : "center";
+    ctx.fillText(s ? `-${s}s` : "agora", x(fim - s * 1000), H - 8);
+  }
+  ctx.textAlign = "left";
   ctx.strokeStyle = "#b91c1c"; ctx.setLineDash([5, 4]);
   ctx.beginPath(); ctx.moveTo(m.e, y(LIMITE_A)); ctx.lineTo(W - m.d, y(LIMITE_A)); ctx.stroke();
   ctx.setLineDash([]);
+
+  // trecho sem nenhuma amostra ate "agora": comunicacao perdida
+  const ultimo = pontos.length ? new Date(pontos[pontos.length - 1].ts_origem).getTime() : fim - janela;
+  if (fim - ultimo > 2500) {
+    const x0 = Math.max(m.e, x(ultimo));
+    ctx.fillStyle = "rgba(156,163,175,.18)";
+    ctx.fillRect(x0, m.t, W - m.d - x0, H - m.t - m.b);
+    ctx.fillStyle = "#6b7280";
+    if (W - m.d - x0 > 70) ctx.fillText("sem dados", x0 + 6, m.t + 14);
+  }
 
   // segmento a segmento: quebra o traco quando falta amostra (> 2,5 s) e
   // pinta de laranja o que veio do buffer (skew maior que o limite de STALE)
