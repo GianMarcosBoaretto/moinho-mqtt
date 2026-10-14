@@ -13,17 +13,20 @@ Nenhuma decisao de seguranca depende deste servico. Ele so monitora.
 import json
 import logging
 import os
+import re
+import socket
 import sqlite3
 import sys
 import threading
 import time
+from collections import deque
 from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import paho.mqtt.client as mqtt
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
 
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
@@ -34,6 +37,8 @@ SCHEMA_ACEITO = 1
 ESTADOS = {"operando", "desarmado", "emergencia"}
 MOTIVOS = {None, "sobrecorrente", "falha_sensor"}
 BLOCO_BOOT = 1_000_000_000   # seq = boot * BLOCO_BOOT + contador (ver docs/NOMEACAO.md)
+PLANTA_GATEWAY = os.getenv("PLANTA_GATEWAY", "planta1")
+DEVICE_ID_VALIDO = re.compile(r"^[a-z0-9_-]{1,32}$")   # entra no topico: nada de "/", "#" ou "+"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S", stream=sys.stdout)
 log = logging.getLogger("backend")
@@ -125,6 +130,42 @@ class Contadores:
 cont = Contadores()
 
 
+class MonitorTrafego:
+    """Guarda em memoria as ultimas mensagens HTTP e MQTT que passaram pelo backend.
+
+    Alimenta o painel de trafego do dashboard (um "Wireshark" simplificado). Nao e
+    captura de pacotes de rede: registra o que o backend enviou e recebeu.
+    """
+
+    def __init__(self, capacidade=600):
+        self.lock = threading.Lock()
+        self.itens = deque(maxlen=capacidade)
+        self.proximo_id = 1
+
+    def registrar(self, proto, direcao, origem, destino, resumo, tamanho=0, detalhe=None, polling=False):
+        with self.lock:
+            self.itens.append({
+                "id": self.proximo_id, "ts": iso(datetime.now(timezone.utc)), "proto": proto,
+                "direcao": direcao, "origem": origem, "destino": destino, "resumo": resumo,
+                "tamanho": tamanho, "polling": polling, "detalhe": detalhe,
+            })
+            self.proximo_id += 1
+
+    def depois_de(self, ultimo_id):
+        with self.lock:
+            return [i for i in self.itens if i["id"] > ultimo_id]
+
+
+trafego = MonitorTrafego()
+
+
+def payload_legivel(bruto):
+    try:
+        return json.loads(bruto)
+    except ValueError:
+        return bruto.decode(errors="replace")
+
+
 # ------------------------------------------------------------------ recepcao MQTT
 def validar(p):
     """Confere o contrato do payload (docs/NOMEACAO.md). Retorna mensagem de erro ou None."""
@@ -200,6 +241,10 @@ def on_message(cli, userdata, msg):
     recebido = datetime.now(timezone.utc)
     cont.somar("recebidas")
     partes = msg.topic.split("/")          # fabrica/<planta>/<device_id>/<tipo>
+    trafego.registrar(
+        "MQTT", "RX", f"{partes[2] if len(partes) > 2 else '?'} (via broker)", CLIENT_ID,
+        f"PUBLISH {msg.topic} QoS{msg.qos}{' retained' if msg.retain else ''}", len(msg.payload),
+        {"topico": msg.topic, "qos": msg.qos, "retained": bool(msg.retain), "payload": payload_legivel(msg.payload)})
     if len(partes) != 4:
         cont.somar("invalidas")
         return
@@ -237,12 +282,16 @@ def on_connect(cli, userdata, flags, reason_code, properties):
     cont.broker_desde = time.time()
     # sessao persistente: o broker guardou o que chegou enquanto o backend estava fora
     log.info(f"[MQTT] conectado ao broker (sessao existente={flags.session_present})")
+    trafego.registrar("MQTT", "conexao", CLIENT_ID, f"broker {MQTT_HOST}:{MQTT_PORT}",
+                      f"CONNECT ok · sessao existente={flags.session_present}")
     cli.subscribe([("fabrica/+/+/corrente", 1), ("fabrica/+/+/alarme", 1), ("fabrica/+/+/status", 1)])
 
 
 def on_disconnect(cli, userdata, flags, reason_code, properties):
     if cont.broker_conectado:
         log.info("[MQTT] perdeu o broker -> dados vao ficar STALE; tentando reconectar")
+        trafego.registrar("MQTT", "conexao", CLIENT_ID, f"broker {MQTT_HOST}:{MQTT_PORT}",
+                          "conexao PERDIDA · tentando reconectar")
         cont.broker_desde = time.time()
     cont.broker_conectado = False
 
@@ -327,9 +376,120 @@ async def ciclo_de_vida(app):
 app = FastAPI(title="Supervisorio moinho", lifespan=ciclo_de_vida)
 
 
+# rotas que o dashboard e o celular consultam a cada 1-2 s: o painel pode esconde-las
+ROTAS_POLLING = {"/api/estado", "/api/historico", "/api/eventos", "/api/dispositivos", "/api/gateway/situacao"}
+ROTAS_NAO_CAPTURADAS = {"/api/trafego", "/favicon.ico"}
+
+
+@app.middleware("http")
+async def capturar_http(request: Request, call_next):
+    inicio = time.perf_counter()
+    resposta = await call_next(request)
+    caminho = request.url.path
+    if caminho not in ROTAS_NAO_CAPTURADAS:
+        ms = (time.perf_counter() - inicio) * 1000
+        url = caminho + (f"?{request.url.query}" if request.url.query else "")
+        cliente = request.client.host if request.client else "?"
+        trafego.registrar(
+            "HTTP", "req", cliente, "backend :8000",
+            f"{request.method} {url} -> {resposta.status_code} · {ms:.0f} ms",
+            int(resposta.headers.get("content-length", 0)),
+            {"metodo": request.method, "url": url, "status": resposta.status_code, "duracao_ms": round(ms, 1),
+             "cliente": cliente, "user_agent": request.headers.get("user-agent", ""),
+             "corpo_enviado": getattr(request.state, "corpo", None),
+             "resposta": getattr(request.state, "resposta", None)},
+            polling=caminho in ROTAS_POLLING)
+    return resposta
+
+
 @app.get("/")
 def dashboard():
     return FileResponse(Path(__file__).parent / "static" / "index.html")
+
+
+@app.get("/celular")
+def pagina_celular():
+    return FileResponse(Path(__file__).parent / "static" / "celular.html")
+
+
+@app.get("/api/trafego")
+def listar_trafego(depois: int = 0):
+    return trafego.depois_de(depois)
+
+
+@app.get("/api/dispositivos")
+def dispositivos():
+    with conectar_db() as con:
+        linhas = con.execute("SELECT device_id FROM leituras UNION SELECT device_id FROM dispositivos").fetchall()
+    return sorted(l[0] for l in linhas)
+
+
+def ip_na_rede_local():
+    """IP do PC na rede Wi-Fi/cabo (para montar o endereco que o celular abre)."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))   # nao envia nada: so escolhe a interface de saida
+            return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+
+
+@app.get("/api/rede")
+def rede():
+    ip = ip_na_rede_local()
+    return {"ip": ip, "url_celular": f"http://{ip}:8000/celular"}
+
+
+# ------------------------------------------------------------ ponte HTTP -> MQTT
+# O navegador do celular nao fala MQTT puro (TCP); ele fala HTTP. O backend recebe a
+# leitura por HTTP e publica no broker com QoS 1, no mesmo topico que um ESP32 usaria.
+# Dali para frente o caminho e o mesmo: broker -> assinante -> banco -> dashboard.
+@app.post("/api/gateway/{tipo}")
+async def gateway(tipo: str, request: Request):
+    try:
+        corpo = await request.json()
+    except ValueError:
+        return JSONResponse({"erro": "JSON malformado"}, status_code=400)
+    request.state.corpo = corpo
+
+    def recusar(status, erro):
+        request.state.resposta = {"erro": erro}
+        return JSONResponse(request.state.resposta, status_code=status)
+
+    if tipo not in ("corrente", "alarme", "status"):
+        return recusar(404, f"tipo desconhecido: {tipo}")
+    device_id = str(corpo.get("device_id", ""))
+    if not DEVICE_ID_VALIDO.match(device_id):
+        return recusar(422, "device_id invalido")
+    erro = None if tipo == "status" else validar(corpo)
+    if erro:
+        return recusar(422, erro)
+    if not cont.broker_conectado:
+        return recusar(503, "broker MQTT inacessivel: guarde no buffer e tente de novo")
+
+    topico = f"fabrica/{PLANTA_GATEWAY}/{device_id}/{tipo}"
+    texto = json.dumps(corpo)
+    info = cliente_mqtt.publish(topico, texto, qos=1, retain=(tipo == "status"))
+    trafego.registrar("MQTT", "TX", f"{CLIENT_ID} (ponte HTTP)", "broker",
+                      f"PUBLISH {topico} QoS1{' retained' if tipo == 'status' else ''}", len(texto),
+                      {"topico": topico, "qos": 1, "retained": tipo == "status", "payload": corpo, "mid": info.mid})
+    request.state.resposta = {"publicado": True, "topico": topico, "mid": info.mid,
+                              "recebido_em": iso(datetime.now(timezone.utc))}
+    return request.state.resposta
+
+
+@app.get("/api/gateway/situacao")
+def situacao_gateway(device_id: str):
+    """O que o PC ja gravou deste dispositivo (o celular mostra como confirmacao de volta)."""
+    with conectar_db() as con:
+        ult = con.execute("SELECT seq, skew_ms FROM leituras WHERE device_id = ? ORDER BY seq DESC LIMIT 1",
+                          (device_id,)).fetchone()
+        total = con.execute("SELECT COUNT(*) FROM leituras WHERE device_id = ?", (device_id,)).fetchone()[0]
+        lacunas = calcular_lacunas(con, device_id)
+    return {"gravadas": total, "ultimo_seq": ult["seq"] if ult else None,
+            "ultimo_skew_ms": ult["skew_ms"] if ult else None,
+            "lacunas": lacunas["amostras_faltando"], "duplicadas_descartadas": cont.duplicadas,
+            "broker_conectado": cont.broker_conectado}
 
 
 @app.get("/api/estado")
