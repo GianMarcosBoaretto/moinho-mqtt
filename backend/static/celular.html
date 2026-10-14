@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta name="theme-color" content="#1d2330">
-<title>Nó celular</title>
+<title>Moinho no celular</title>
 <style>
   :root {
     --fundo: #f4f5f7; --cartao: #fff; --texto: #1d2330; --suave: #6b7280; --borda: #e2e5ea;
@@ -41,6 +41,8 @@
   .numeros b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
   .numeros span { font-size: 12px; color: var(--suave); }
   .volta { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--borda); font-size: 14px; }
+  .conflito { display: none; padding: 10px 12px; border-radius: 10px; background: var(--alerta-fundo); color: var(--alerta); border: 1px solid #fca5a5; font-size: 14px; }
+  .conflito.visivel { display: block; }
   #log { font: 12px/1.45 ui-monospace, Consolas, monospace; max-height: 260px; overflow-y: auto; margin-top: 6px; }
   #log div { padding: 2px 0; border-bottom: 1px solid #f0f1f3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #log .ok { color: var(--ok); }
@@ -50,11 +52,14 @@
 </head>
 <body>
 <header>
-  <h1>📱 <span id="nome">celular01</span> · nó de medição</h1>
+  <h1>📱 <span id="nome">moinho01</span> · nó de medição</h1>
   <span class="link" id="link">conectando…</span>
 </header>
 
 <main>
+  <div class="conflito" id="conflito">⚠ Outro nó também está publicando como <b id="conflito-nome">moinho01</b>
+    (o simulador do PC está ligado?). Desligue o simulador para o celular ser o único moinho.</div>
+
   <section class="cartao">
     <div class="rotulo">Medição local</div>
     <div class="medida">
@@ -94,22 +99,28 @@
 </main>
 
 <script>
-// Este celular faz o papel do no de medicao (o mesmo contrato do ESP32 e do simulador):
+// Este celular E o moinho01: faz o papel do no de medicao no lugar do simulador do PC
+// (o mesmo contrato do ESP32 e do simulador):
 //   1. PROTECAO local a cada 100 ms: le a "carga", decide e "aciona o rele". Sem rede.
 //   2. MONITORAMENTO: a cada 1 s (ou na mudanca de estado) monta o payload, guarda no
 //      buffer circular e envia ao PC por HTTP. O PC publica no MQTT e grava no banco.
 const params = new URLSearchParams(location.search);
-const DEVICE = params.get("device") || "celular01";
+const DEVICE = params.get("device") || "moinho01";
 const LIMITE_A = 100, CONFIRMACAO = 3, PERIODO_PROTECAO = 100, PERIODO_TELEMETRIA = 1000, TAM_BUFFER = 300;
 const $ = (id) => document.getElementById(id);
 $("nome").textContent = DEVICE;
 
-// seq = boot * 1e9 + contador; o boot fica guardado no navegador e sobe a cada recarga
-let boot = 1;
+// seq = boot * 1e9 + contador. Aqui o "boot" e o minuto atual contado desde 2026
+// (~530 mil por ano). Assim ele nunca coincide com o contador de boot pequeno (1, 2, 3...)
+// do simulador ou do ESP32, que publicam com o mesmo device_id: sem isso o backend
+// descartaria as leituras do celular como "duplicadas" de leituras antigas do simulador.
+// Duas recargas no mesmo minuto: usa o anterior + 1.
+const MINUTO_2026 = Math.floor((Date.now() - Date.UTC(2026, 0, 1)) / 60000);
+let boot = MINUTO_2026;
 try {
-  boot = Number(localStorage.getItem("boot_" + DEVICE) || 0) + 1;
+  boot = Math.max(MINUTO_2026, Number(localStorage.getItem("boot_" + DEVICE) || 0) + 1);
   localStorage.setItem("boot_" + DEVICE, String(boot));
-} catch { boot = Math.floor(Date.now() / 1000) % 1_000_000; }
+} catch { /* sem localStorage: fica o minuto atual */ }
 let contador = 0;
 const proximoSeq = () => boot * 1_000_000_000 + (++contador);
 
@@ -241,12 +252,14 @@ setInterval(() => {
   desenhar();
 }, PERIODO_PROTECAO);
 
-// "recebe": o que o PC ja gravou deste celular
+// "recebe": o que o PC ja gravou deste celular (nesta sessao)
 setInterval(async () => {
   if (cortado) return;
   try {
-    const r = await fetch(`/api/gateway/situacao?device_id=${encodeURIComponent(DEVICE)}`, { cache: "no-store" });
+    const r = await fetch(`/api/gateway/situacao?device_id=${encodeURIComponent(DEVICE)}&boot=${boot}`, { cache: "no-store" });
     const s = await r.json();
+    $("conflito-nome").textContent = DEVICE;
+    $("conflito").classList.toggle("visivel", s.outra_fonte_publicando);
     $("volta").innerHTML = s.ultimo_seq
       ? `↩ <b>PC confirmou</b>: ${s.gravadas} leituras gravadas · último seq …${String(s.ultimo_seq).slice(-4)}` +
         ` · atraso ${s.ultimo_skew_ms} ms · lacunas ${s.lacunas}${s.broker_conectado ? "" : " · <b>broker do PC fora</b>"}`

@@ -27,7 +27,7 @@ flowchart LR
 
     DB[("SQLite<br/>leituras · eventos · dispositivos")]
     NAV["Navegador do operador<br/>dashboard HTML + painel de tráfego"]
-    CEL["Celular (nó celular01)<br/>página /celular · proteção + buffer"]
+    CEL["Celular fazendo o moinho01<br/>página /celular · proteção + buffer"]
     PONTE["Ponte HTTP → MQTT<br/>POST /api/gateway/*"]
 
     BUF -->|"MQTT/TCP · QoS 1 · PUBLISH<br/>cliente → servidor<br/>LWT + status retained"| BROKER

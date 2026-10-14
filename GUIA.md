@@ -236,18 +236,23 @@ abrir** e o Monitor Serial mostra "SEM REDE".
 
 Um celular pode fazer o papel do ESP32. A página `/celular` roda **no navegador do
 celular** a mesma lógica do nó: proteção local a cada 100 ms, buffer circular de 300 e o
-mesmo payload, com `device_id` = `celular01`. O simulador pode continuar rodando ao
-mesmo tempo, porque são dispositivos diferentes.
+mesmo payload. O celular **é o moinho01**: faz o papel do simulador. Por isso o
+simulador do PC precisa estar **desligado**; se os dois publicarem como `moinho01`, a
+página do celular mostra um aviso vermelho.
 
 ### Como abrir
 
 1. PC e celular na **mesma rede Wi-Fi**.
-2. Suba o sistema (seção 2). No jeito B, o `rodar-local.ps1` já escuta na rede.
+2. Suba o sistema **sem o simulador**:
+   - jeito B: `powershell -ExecutionPolicy Bypass -File scripts\rodar-local.ps1 -SemSimulador`
+     (ele já escuta na rede);
+   - jeito A: `docker compose up --build broker backend`.
 3. No topo do dashboard aparece "📱 no celular, abra **http://IP-DO-PC:8000/celular**".
    Digite esse endereço no navegador do celular.
-4. O dashboard em `localhost:8000` **troca sozinho para o celular01** quando ele começa a
-   transmitir; se abrir a página depois, ele já abre no celular. A faixa **Dispositivos**,
-   no topo, mostra todos ao vivo (🏭 moinho01, 📱 celular01); clique num deles para trocar.
+4. Abra `localhost:8000` no PC. O dashboard mostra o **moinho01**, que agora é o seu
+   celular: mexa na carga no celular e veja a corrente mudar no PC. A faixa
+   **Dispositivos**, no topo, mostra todos os dispositivos ao vivo; clique num deles para
+   trocar.
 
 ### O caminho do dado
 
@@ -258,7 +263,7 @@ celular ──HTTP POST /api/gateway/corrente──▶ backend (ponte) ──MQT
 ```
 
 O navegador do celular não fala MQTT puro, só HTTP. Por isso o backend recebe a leitura
-por HTTP e **publica no broker** no tópico `fabrica/planta1/celular01/corrente`, igual a
+por HTTP e **publica no broker** no tópico `fabrica/planta1/moinho01/corrente`, igual a
 um ESP32. Dali em diante o caminho é o mesmo do simulador. O celular **envia** a leitura e
 **recebe** de volta a confirmação: a resposta do POST e, a cada 2 s, quantas leituras o PC
 já gravou, o último `seq` e o atraso.
@@ -277,7 +282,7 @@ O "Log de envio e resposta" mostra cada requisição: `→ POST corrente seq …
 
 ### Teste de queda pelo celular
 
-1. Toque **📵 Simular queda**. Em 5 s o dashboard (em `celular01`) mostra o banner de
+1. Toque **📵 Simular queda**. Em 5 s o dashboard mostra o banner de
    comunicação perdida.
 2. Arraste a carga para **130 A**. O celular desarma **sozinho**, e o log diz "decidido no
    celular, SEM REDE". O contador "no buffer" sobe.
@@ -299,7 +304,7 @@ o backend enviou ou recebeu, com a mais nova em cima:
 | Tipo | Exemplo | Significa |
 |---|---|---|
 | `HTTP` | `192.168.1.40 → backend :8000` · `POST /api/gateway/corrente -> 200 · 4 ms` | requisição que chegou na API: quem pediu (IP), o quê, status e tempo de resposta |
-| `MQTT` ⇢ (TX) | `supervisorio-planta1 (ponte HTTP) ⇢ broker` · `PUBLISH fabrica/planta1/celular01/corrente QoS1` | o backend publicou no broker (ponte do celular) |
+| `MQTT` ⇢ (TX) | `supervisorio-planta1 (ponte HTTP) ⇢ broker` · `PUBLISH fabrica/planta1/moinho01/corrente QoS1` | o backend publicou no broker (ponte do celular) |
 | `MQTT` ⇠ (RX) | `moinho01 (via broker) ⇠ supervisorio-planta1` · `PUBLISH fabrica/planta1/moinho01/corrente QoS1` | mensagem que o broker entregou ao assinante |
 | `MQTT` ⇄ | `CONNECT ok` / `conexao PERDIDA` | o backend conectou ou perdeu o broker |
 

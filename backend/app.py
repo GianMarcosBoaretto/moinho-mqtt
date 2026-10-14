@@ -494,16 +494,25 @@ async def gateway(tipo: str, request: Request):
 
 
 @app.get("/api/gateway/situacao")
-def situacao_gateway(device_id: str):
-    """O que o PC ja gravou deste dispositivo (o celular mostra como confirmacao de volta)."""
+def situacao_gateway(device_id: str, boot: int):
+    """O que o PC ja gravou deste no, nesta sessao (bloco de seq do boot).
+
+    Tambem diz se OUTRA fonte (outro bloco de seq) publicou como o mesmo device_id nos
+    ultimos 5 s: e o caso do simulador ligado junto com o celular fazendo o moinho01.
+    """
+    inicio, fim = boot * BLOCO_BOOT, (boot + 1) * BLOCO_BOOT
+    recente = iso(datetime.now(timezone.utc) - timedelta(seconds=5))
     with conectar_db() as con:
-        ult = con.execute("SELECT seq, skew_ms FROM leituras WHERE device_id = ? ORDER BY seq DESC LIMIT 1",
-                          (device_id,)).fetchone()
-        total = con.execute("SELECT COUNT(*) FROM leituras WHERE device_id = ?", (device_id,)).fetchone()[0]
+        ult = con.execute("SELECT seq, skew_ms FROM leituras WHERE device_id = ? AND seq >= ? AND seq < ?"
+                          " ORDER BY seq DESC LIMIT 1", (device_id, inicio, fim)).fetchone()
+        total = con.execute("SELECT COUNT(*) FROM leituras WHERE device_id = ? AND seq >= ? AND seq < ?",
+                            (device_id, inicio, fim)).fetchone()[0]
+        outras = con.execute("SELECT COUNT(*) FROM leituras WHERE device_id = ? AND ts_recebimento >= ?"
+                             " AND (seq < ? OR seq >= ?)", (device_id, recente, inicio, fim)).fetchone()[0]
         lacunas = calcular_lacunas(con, device_id)
     return {"gravadas": total, "ultimo_seq": ult["seq"] if ult else None,
             "ultimo_skew_ms": ult["skew_ms"] if ult else None,
-            "lacunas": lacunas["amostras_faltando"], "duplicadas_descartadas": cont.duplicadas,
+            "lacunas": lacunas["amostras_faltando"], "outra_fonte_publicando": outras > 0,
             "broker_conectado": cont.broker_conectado}
 
 

@@ -58,7 +58,8 @@ docker compose logs -f simulador backend
 ### Celular como nó e painel de tráfego
 
 Com o celular no mesmo Wi-Fi, abra `http://IP-DO-PC:8000/celular`. O endereço aparece no
-topo do dashboard. O celular vira o nó `celular01`: envia leituras por HTTP, o backend
+topo do dashboard. O celular passa a **ser o moinho01**, no lugar do simulador (suba com
+`rodar-local.ps1 -SemSimulador`): envia leituras por HTTP, o backend
 publica no MQTT e o dashboard mostra, no painel **Tráfego**, cada requisição e mensagem
 (estilo Wireshark). Detalhes no [GUIA.md](GUIA.md), seções 10 e 11.
 

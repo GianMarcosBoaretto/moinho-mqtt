@@ -166,7 +166,7 @@
 <script>
 const LIMITE_A = 100;
 const $ = (id) => document.getElementById(id);
-// Sem ?device= na URL, abre o celular se ele estiver transmitindo (ver atualizarResumo)
+// Sem ?device= na URL, abre o moinho01 ou, se ele estiver parado, o primeiro que transmite
 const DEVICE_DA_URL = new URLSearchParams(location.search).get("device");
 let DEVICE = DEVICE_DA_URL || "moinho01";
 
@@ -210,7 +210,7 @@ $("dispositivo").addEventListener("change", (e) => selecionar(e.target.value));
 // ------------------------------------------------- faixa de dispositivos
 // Mostra todos os dispositivos ao vivo. Quando um dispositivo NOVO comeca a transmitir
 // com a tela aberta (ex.: alguem abriu /celular), o dashboard troca para ele sozinho.
-const icone = (d) => (/^celular/.test(d) ? "📱" : "🏭");
+const icone = () => "🏭";
 let conhecidos = null;   // dispositivos que ja existiam quando a tela abriu
 
 async function atualizarResumo() {
@@ -219,9 +219,9 @@ async function atualizarResumo() {
 
   if (conhecidos === null) {
     conhecidos = new Set(lista.map((d) => d.device_id));
-    // sem ?device=: celular transmitindo tem prioridade; senao, o primeiro que estiver transmitindo
-    const ativo = lista.find((d) => !d.stale && /^celular/.test(d.device_id)) || lista.find((d) => !d.stale);
-    if (!DEVICE_DA_URL && ativo) selecionar(ativo.device_id);
+    const atual = lista.find((d) => d.device_id === DEVICE);
+    const ativo = lista.find((d) => !d.stale);
+    if (!DEVICE_DA_URL && ativo && (!atual || atual.stale)) selecionar(ativo.device_id);
   } else {
     const novo = lista.find((d) => !conhecidos.has(d.device_id) && !d.stale);
     for (const d of lista) conhecidos.add(d.device_id);

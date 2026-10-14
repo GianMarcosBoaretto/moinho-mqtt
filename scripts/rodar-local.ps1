@@ -4,10 +4,12 @@
 # Uso (na raiz do projeto):
 #   powershell -ExecutionPolicy Bypass -File scripts\rodar-local.ps1
 #   powershell -ExecutionPolicy Bypass -File scripts\rodar-local.ps1 -SoBroker    # religa so o broker
+#   powershell -ExecutionPolicy Bypass -File scripts\rodar-local.ps1 -SemSimulador # o celular faz o moinho01
 #
 # Para simular a queda de comunicacao: feche a janela "BROKER MQTT".
 param(
     [switch]$SoBroker,
+    [switch]$SemSimulador,
     [switch]$SemNavegador
 )
 
@@ -32,7 +34,7 @@ if ($SoBroker) { Write-Host 'Broker religado.'; exit }
 
 Start-Sleep -Seconds 3
 Abrir-Janela 'BACKEND' "$raiz\backend" "& '$py' -m uvicorn app:app --host 0.0.0.0 --port 8000 --no-access-log"
-Abrir-Janela 'SIMULADOR' "$raiz\simulador" "& '$py' simulador.py"
+if (-not $SemSimulador) { Abrir-Janela 'SIMULADOR' "$raiz\simulador" "& '$py' simulador.py" }
 
 Start-Sleep -Seconds 5
 if (-not $SemNavegador) { Start-Process 'http://localhost:8000' }
