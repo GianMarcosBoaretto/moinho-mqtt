@@ -189,11 +189,11 @@ descartadas" sobe 2. O histórico **não** ganha ponto novo.
 Sem Docker (Windows), com o `rodar-local` fechado:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts	este_falha_local.ps1
+powershell -ExecutionPolicy Bypass -File scripts\teste_falha_local.ps1
 ```
 
 Ele sobe tudo sozinho em segundo plano, com banco próprio, executa T1, T4, T5 e T6 e
-grava o resultado em `logs\local-<data-hora>esultado.txt`. Leva cerca de 1 minuto.
+grava o resultado em `logs\local-<data-hora>\resultado.txt`. Leva cerca de 1 minuto.
 
 Com Docker:
 
