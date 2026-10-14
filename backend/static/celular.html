@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#1d2330">
+<title>Nó celular</title>
+<style>
+  :root {
+    --fundo: #f4f5f7; --cartao: #fff; --texto: #1d2330; --suave: #6b7280; --borda: #e2e5ea;
+    --ok: #15803d; --ok-fundo: #dcfce7; --alerta: #b91c1c; --alerta-fundo: #fee2e2;
+    --aviso: #92400e; --aviso-fundo: #fef3c7;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font: 16px/1.4 system-ui, sans-serif; background: var(--fundo); color: var(--texto); }
+  header { padding: 12px 16px; background: #1d2330; color: #fff; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  header h1 { margin: 0; font-size: 17px; }
+  .link { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--ok-fundo); color: var(--ok); white-space: nowrap; }
+  .link.fora { background: var(--alerta-fundo); color: var(--alerta); }
+  .link.cortado { background: var(--aviso-fundo); color: var(--aviso); }
+  main { padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; max-width: 560px; margin: 0 auto; }
+  main > * { min-width: 0; }
+  .cartao { background: var(--cartao); border: 1px solid var(--borda); border-radius: 10px; padding: 14px; }
+  .rotulo { color: var(--suave); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .medida { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .valor { font-size: 46px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .selo { display: inline-block; padding: 5px 12px; border-radius: 999px; font-weight: 700; font-size: 15px; }
+  .selo.operando { background: var(--ok-fundo); color: var(--ok); }
+  .selo.desarmado, .selo.emergencia { background: var(--alerta-fundo); color: var(--alerta); }
+  .detalhe { color: var(--suave); font-size: 13px; margin-top: 4px; }
+  input[type=range] { width: 100%; height: 36px; accent-color: #2563eb; }
+  .escala { display: flex; justify-content: space-between; font-size: 12px; color: var(--suave); }
+  .escala b { color: var(--alerta); }
+  .botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button { font: inherit; font-weight: 600; padding: 14px 10px; border-radius: 10px; border: 1px solid var(--borda); background: #fff; color: var(--texto); }
+  button:active { transform: scale(.98); }
+  button.emerg { border-color: #fca5a5; color: var(--alerta); }
+  button.ligado { background: var(--alerta); color: #fff; border-color: var(--alerta); }
+  button.ligado-aviso { background: #f59e0b; color: #fff; border-color: #f59e0b; }
+  .numeros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; margin-top: 8px; }
+  .numeros b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .numeros span { font-size: 12px; color: var(--suave); }
+  .volta { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--borda); font-size: 14px; }
+  #log { font: 12px/1.45 ui-monospace, Consolas, monospace; max-height: 260px; overflow-y: auto; margin-top: 6px; }
+  #log div { padding: 2px 0; border-bottom: 1px solid #f0f1f3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #log .ok { color: var(--ok); }
+  #log .falha { color: var(--alerta); }
+  #log .info { color: var(--suave); }
+</style>
+</head>
+<body>
+<header>
+  <h1>📱 <span id="nome">celular01</span> · nó de medição</h1>
+  <span class="link" id="link">conectando…</span>
+</header>
+
+<main>
+  <section class="cartao">
+    <div class="rotulo">Medição local</div>
+    <div class="medida">
+      <div><span class="valor" id="corrente">—</span> <b>A</b></div>
+      <span class="selo operando" id="estado">OPERANDO</span>
+    </div>
+    <div class="detalhe" id="rele">relé FECHADO · motor ligado</div>
+  </section>
+
+  <section class="cartao">
+    <div class="rotulo">Carga do moinho (faz o papel do potenciômetro): <b id="carga-valor">72</b> A</div>
+    <input type="range" id="carga" min="0" max="150" value="72" step="1">
+    <div class="escala"><span>0</span><span>50</span><b>100 = limite</b><span>150</span></div>
+  </section>
+
+  <section class="botoes">
+    <button class="emerg" id="b-emergencia">🛑 Emergência</button>
+    <button id="b-rearmar">↺ Rearmar</button>
+    <button id="b-sensor">⚡ Falha de sensor</button>
+    <button id="b-queda">📵 Simular queda</button>
+  </section>
+
+  <section class="cartao">
+    <div class="rotulo">Transmissão para o PC</div>
+    <div class="numeros">
+      <div><b id="n-enviados">0</b><span>enviadas</span></div>
+      <div><b id="n-buffer">0</b><span>no buffer /300</span></div>
+      <div><b id="n-descartadas">0</b><span>perdidas</span></div>
+    </div>
+    <div class="volta" id="volta">↩ aguardando resposta do PC…</div>
+  </section>
+
+  <section class="cartao">
+    <div class="rotulo">Log de envio e resposta</div>
+    <div id="log"></div>
+  </section>
+</main>
+
+<script>
+// Este celular faz o papel do no de medicao (o mesmo contrato do ESP32 e do simulador):
+//   1. PROTECAO local a cada 100 ms: le a "carga", decide e "aciona o rele". Sem rede.
+//   2. MONITORAMENTO: a cada 1 s (ou na mudanca de estado) monta o payload, guarda no
+//      buffer circular e envia ao PC por HTTP. O PC publica no MQTT e grava no banco.
+const params = new URLSearchParams(location.search);
+const DEVICE = params.get("device") || "celular01";
+const LIMITE_A = 100, CONFIRMACAO = 3, PERIODO_PROTECAO = 100, PERIODO_TELEMETRIA = 1000, TAM_BUFFER = 300;
+const $ = (id) => document.getElementById(id);
+$("nome").textContent = DEVICE;
+
+// seq = boot * 1e9 + contador; o boot fica guardado no navegador e sobe a cada recarga
+let boot = 1;
+try {
+  boot = Number(localStorage.getItem("boot_" + DEVICE) || 0) + 1;
+  localStorage.setItem("boot_" + DEVICE, String(boot));
+} catch { boot = Math.floor(Date.now() / 1000) % 1_000_000; }
+let contador = 0;
+const proximoSeq = () => boot * 1_000_000_000 + (++contador);
+
+// ------------------------------------------------------------------ protecao
+const prot = {
+  disparo: null, botoeira: false, contSobre: 0, contFalha: 0,
+  get releFechado() { return !this.botoeira && this.disparo === null; },
+  get estado() { return this.botoeira ? "emergencia" : this.disparo ? "desarmado" : "operando"; },
+  avaliar(corrente) {
+    if (this.disparo !== null) return;
+    this.contFalha = corrente === null ? this.contFalha + 1 : 0;
+    this.contSobre = corrente !== null && corrente > LIMITE_A ? this.contSobre + 1 : 0;
+    if (this.contFalha >= CONFIRMACAO) this.disparo = "falha_sensor";      // sem medicao: desarma
+    else if (this.contSobre >= CONFIRMACAO) this.disparo = "sobrecorrente";
+  },
+  rearmar() {
+    if (this.botoeira) { registrar("info", "rearme recusado: emergência ainda acionada"); return; }
+    this.disparo = null; this.contSobre = this.contFalha = 0;
+  },
+};
+let falhaSensor = false;
+
+function lerSensor() {
+  if (falhaSensor) return null;
+  if (!prot.releFechado) return Math.round(Math.random() * 3) / 10;          // motor parado
+  const carga = Number($("carga").value);
+  return Math.round((carga + (Math.random() - 0.5) * 3) * 10) / 10;
+}
+
+// ------------------------------------------------------------- monitoramento
+const buffer = [];
+let enviados = 0, descartadas = 0, enviando = false, cortado = false, online = null, proximaTentativa = 0;
+
+function enfileirar(tipo, payload) {
+  if (buffer.length >= TAM_BUFFER) { buffer.shift(); descartadas++; }
+  buffer.push({ tipo, payload });
+}
+
+function registrar(classe, texto) {
+  const d = new Date();
+  const h = d.toLocaleTimeString("pt-BR") + "." + String(d.getMilliseconds()).padStart(3, "0");
+  const linha = document.createElement("div");
+  linha.className = classe;
+  linha.textContent = `${h}  ${texto}`;
+  $("log").prepend(linha);
+  while ($("log").children.length > 60) $("log").lastElementChild.remove();
+}
+
+async function postar(item) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 2500);
+  try {
+    return await fetch(`/api/gateway/${item.tipo}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(item.payload), signal: ctrl.signal,
+    });
+  } finally { clearTimeout(timer); }
+}
+
+// Envia na ordem; para no primeiro erro (o resto fica no buffer para a proxima tentativa)
+async function esvaziarBuffer() {
+  if (enviando || !buffer.length || Date.now() < proximaTentativa) return;
+  if (cortado) { online = false; return; }
+  enviando = true;
+  const reenvio = buffer.length > 3;
+  let ok = 0;
+  while (buffer.length && !cortado) {
+    const item = buffer[0], t0 = performance.now();
+    const seqCurto = String(item.payload.seq).slice(-4);
+    try {
+      const r = await postar(item);
+      const ms = Math.round(performance.now() - t0);
+      const corpo = await r.json().catch(() => ({}));
+      if (r.ok) {
+        buffer.shift(); enviados++; ok++; online = true;
+        if (!reenvio || item.tipo !== "corrente")
+          registrar("ok", `→ POST ${item.tipo} seq …${seqCurto} ${item.payload.corrente_a ?? "falha"} A  ← ${r.status} · ${ms} ms`);
+      } else if (r.status === 422) {
+        buffer.shift();                                       // PC recusou o conteudo: nao adianta reenviar
+        registrar("falha", `→ POST ${item.tipo} seq …${seqCurto}  ← ${r.status} recusado: ${corpo.erro}`);
+      } else {
+        online = false; proximaTentativa = Date.now() + 1000;
+        registrar("falha", `→ POST ${item.tipo} seq …${seqCurto}  ← ${r.status} ${corpo.erro ?? ""} · buffer ${buffer.length}`);
+        break;
+      }
+    } catch {
+      online = false; proximaTentativa = Date.now() + 1000;
+      registrar("falha", `→ POST ${item.tipo} seq …${seqCurto}  ✗ PC não respondeu · buffer ${buffer.length}`);
+      break;
+    }
+  }
+  if (reenvio && ok) registrar("info", `flush do buffer: ${ok} mensagens reenviadas com seq/ts_origem originais`);
+  enviando = false;
+}
+
+function payloadDe(corrente) {
+  return { schema: 1, device_id: DEVICE, seq: proximoSeq(), ts_origem: new Date().toISOString(),
+           corrente_a: corrente, estado: prot.estado, motivo: prot.disparo };
+}
+
+function enviarStatus() {           // retained no broker; sem buffer: so o mais recente importa
+  if (cortado) return;
+  const status = { schema: 1, device_id: DEVICE, online: true, estado: prot.estado,
+                   motivo: prot.disparo, ts_origem: new Date().toISOString() };
+  postar({ tipo: "status", payload: status }).catch(() => {});
+}
+
+// ------------------------------------------------------------------- laco principal
+let proximaTelemetria = 0, ultimaCorrente = null;
+setInterval(() => {
+  const antes = prot.estado + prot.disparo;
+
+  // 1. protecao local: mede, decide, atua. Nada de rede aqui.
+  const corrente = lerSensor();
+  prot.avaliar(corrente);
+  ultimaCorrente = corrente;
+  const mudou = prot.estado + prot.disparo !== antes;
+  if (mudou) registrar("info", `PROTEÇÃO: ${prot.estado}${prot.disparo ? " (" + prot.disparo + ")" : ""} — decidido no celular, ${online ? "online" : "SEM REDE"}`);
+
+  // 2. monitoramento: so depois, e sem bloquear a protecao
+  const agora = Date.now();
+  if (mudou || agora >= proximaTelemetria) {
+    proximaTelemetria = agora + PERIODO_TELEMETRIA;
+    const p = payloadDe(corrente);
+    enfileirar("corrente", p);
+    if (mudou) { enfileirar("alarme", p); enviarStatus(); }
+  }
+  esvaziarBuffer();
+  desenhar();
+}, PERIODO_PROTECAO);
+
+// "recebe": o que o PC ja gravou deste celular
+setInterval(async () => {
+  if (cortado) return;
+  try {
+    const r = await fetch(`/api/gateway/situacao?device_id=${encodeURIComponent(DEVICE)}`, { cache: "no-store" });
+    const s = await r.json();
+    $("volta").innerHTML = s.ultimo_seq
+      ? `↩ <b>PC confirmou</b>: ${s.gravadas} leituras gravadas · último seq …${String(s.ultimo_seq).slice(-4)}` +
+        ` · atraso ${s.ultimo_skew_ms} ms · lacunas ${s.lacunas}${s.broker_conectado ? "" : " · <b>broker do PC fora</b>"}`
+      : "↩ o PC ainda não gravou nada deste celular";
+  } catch { $("volta").textContent = "↩ sem resposta do PC"; }
+}, 2000);
+
+// ------------------------------------------------------------------- tela
+function desenhar() {
+  $("corrente").textContent = ultimaCorrente === null ? "falha" : ultimaCorrente.toFixed(1);
+  const est = $("estado");
+  est.textContent = prot.estado.toUpperCase() + (prot.disparo ? " · " + prot.disparo.replace("_", " ") : "");
+  est.className = "selo " + prot.estado;
+  $("rele").textContent = prot.releFechado ? "relé FECHADO · motor ligado" : "relé ABERTO · motor parado";
+  $("n-enviados").textContent = enviados;
+  $("n-buffer").textContent = buffer.length;
+  $("n-descartadas").textContent = descartadas;
+  const link = $("link");
+  link.className = "link" + (cortado ? " cortado" : online === false ? " fora" : "");
+  link.textContent = cortado ? "queda simulada" : online === false ? "sem comunicação" : online ? "transmitindo" : "conectando…";
+  $("b-emergencia").classList.toggle("ligado", prot.botoeira);
+  $("b-sensor").classList.toggle("ligado", falhaSensor);
+  $("b-queda").classList.toggle("ligado-aviso", cortado);
+}
+
+$("carga").addEventListener("input", (e) => $("carga-valor").textContent = e.target.value);
+$("b-emergencia").addEventListener("click", () => { prot.botoeira = !prot.botoeira; });
+$("b-rearmar").addEventListener("click", () => prot.rearmar());
+$("b-sensor").addEventListener("click", () => { falhaSensor = !falhaSensor; });
+$("b-queda").addEventListener("click", () => {
+  cortado = !cortado;
+  registrar("info", cortado ? "queda simulada: nada sai do celular; a proteção continua aqui"
+                            : "comunicação restabelecida: enviando o buffer");
+  if (!cortado) { proximaTentativa = 0; enviarStatus(); }
+});
+
+registrar("info", `nó ${DEVICE} iniciado (boot ${boot}); enviando para ${location.host}`);
+enviarStatus();
+</script>
+</body>
+</html>
