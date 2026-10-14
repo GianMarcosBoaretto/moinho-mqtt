@@ -48,7 +48,7 @@ Com Docker:
 Sem Docker (Windows):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts	este_falha_local.ps1
+powershell -ExecutionPolicy Bypass -File scripts\teste_falha_local.ps1
 ```
 
 O script leva cerca de 1 min 30 s. Deixe <http://localhost:8085> aberto num navegador ao
