@@ -229,7 +229,7 @@ async function atualizarResumo() {
       $("aviso-novo").textContent = `${icone(novo.device_id)} ${novo.device_id} começou a transmitir — mostrando os dados dele. ` +
         `Para voltar, clique em outro dispositivo acima.`;
       $("aviso-novo").classList.add("visivel");
-      setTimeout(() => $("aviso-novo").classList.remove("visivel"), 8000);
+      setTimeout(() => $("aviso-novo").classList.remove("visivel"), 8085);
       selecionar(novo.device_id);
     }
   }

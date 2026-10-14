@@ -14,7 +14,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-API="http://localhost:8000"
+API="http://localhost:8085"
 DEVICE="moinho01"
 SAIDA="logs/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$SAIDA"
@@ -30,7 +30,7 @@ falhou() { echo "  [FALHA] $*"; FALHAS=$((FALHAS + 1)); }
 api_py() {
   docker exec -i moinho-backend python - "$1" <<'PY'
 import json, sys, urllib.request
-base = "http://localhost:8000"
+base = "http://localhost:8085"
 get = lambda p: json.load(urllib.request.urlopen(base + p))
 e = get("/api/estado?device_id=moinho01")
 h = get("/api/historico?device_id=moinho01&segundos=600")

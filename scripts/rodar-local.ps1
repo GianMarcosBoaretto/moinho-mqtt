@@ -1,5 +1,5 @@
 # Sobe tudo SEM Docker, cada parte numa janela propria do PowerShell:
-#   BROKER MQTT, BACKEND (dashboard em http://localhost:8000) e SIMULADOR.
+#   BROKER MQTT, BACKEND (dashboard em http://localhost:8085) e SIMULADOR.
 #
 # Uso (na raiz do projeto):
 #   powershell -ExecutionPolicy Bypass -File scripts\rodar-local.ps1
@@ -33,9 +33,9 @@ Abrir-Janela 'BROKER MQTT' $raiz "& '$amqtt' -c '$raiz\mosquitto\amqtt-local.yam
 if ($SoBroker) { Write-Host 'Broker religado.'; exit }
 
 Start-Sleep -Seconds 3
-Abrir-Janela 'BACKEND' "$raiz\backend" "& '$py' -m uvicorn app:app --host 0.0.0.0 --port 8000 --no-access-log"
+Abrir-Janela 'BACKEND' "$raiz\backend" "& '$py' -m uvicorn app:app --host 0.0.0.0 --port 8085 --no-access-log"
 if (-not $SemSimulador) { Abrir-Janela 'SIMULADOR' "$raiz\simulador" "& '$py' simulador.py" }
 
 Start-Sleep -Seconds 5
-if (-not $SemNavegador) { Start-Process 'http://localhost:8000' }
-Write-Host 'Pronto: dashboard em http://localhost:8000'
+if (-not $SemNavegador) { Start-Process 'http://localhost:8085' }
+Write-Host 'Pronto: dashboard em http://localhost:8085'

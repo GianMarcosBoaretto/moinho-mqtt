@@ -28,7 +28,7 @@ Pré-requisito: Docker com Compose.
 docker compose up --build
 ```
 
-- Dashboard: <http://localhost:8000>
+- Dashboard: <http://localhost:8085>
 - Broker MQTT: `localhost:1883`
 
 O simulador começa a publicar ~72 A com o moinho `OPERANDO`. Para forçar situações:
@@ -57,7 +57,7 @@ docker compose logs -f simulador backend
 
 ### Celular como nó e painel de tráfego
 
-Com o celular no mesmo Wi-Fi, abra `http://IP-DO-PC:8000/celular`. O endereço aparece no
+Com o celular no mesmo Wi-Fi, abra `http://IP-DO-PC:8085/celular`. O endereço aparece no
 topo do dashboard. O celular passa a **ser o moinho01**, no lugar do simulador (suba com
 `rodar-local.ps1 -SemSimulador`): envia leituras por HTTP, o backend
 publica no MQTT e o dashboard mostra, no painel **Tráfego**, cada requisição e mensagem
@@ -83,7 +83,7 @@ python -m venv .venv && .venv/Scripts/pip install -r backend/requirements.txt
 ```
 
 ```bash
-cd backend && ../.venv/Scripts/python -m uvicorn app:app --port 8000
+cd backend && ../.venv/Scripts/python -m uvicorn app:app --port 8085
 ```
 
 ```bash

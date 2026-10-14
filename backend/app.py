@@ -392,7 +392,7 @@ async def capturar_http(request: Request, call_next):
         url = caminho + (f"?{request.url.query}" if request.url.query else "")
         cliente = request.client.host if request.client else "?"
         trafego.registrar(
-            "HTTP", "req", cliente, "backend :8000",
+            "HTTP", "req", cliente, f"backend :{request.url.port or 80}",
             f"{request.method} {url} -> {resposta.status_code} · {ms:.0f} ms",
             int(resposta.headers.get("content-length", 0)),
             {"metodo": request.method, "url": url, "status": resposta.status_code, "duracao_ms": round(ms, 1),
@@ -450,9 +450,9 @@ def ip_na_rede_local():
 
 
 @app.get("/api/rede")
-def rede():
-    ip = ip_na_rede_local()
-    return {"ip": ip, "url_celular": f"http://{ip}:8000/celular"}
+def rede(request: Request):
+    ip, porta = ip_na_rede_local(), request.url.port or 80
+    return {"ip": ip, "url_celular": f"http://{ip}:{porta}/celular"}
 
 
 # ------------------------------------------------------------ ponte HTTP -> MQTT

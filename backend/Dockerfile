@@ -5,5 +5,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY static ./static
 ENV PYTHONUNBUFFERED=1
-EXPOSE 8000
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+EXPOSE 8085
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8085", "--no-access-log"]

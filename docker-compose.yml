@@ -1,6 +1,6 @@
 # Fatia funcional: simulador -> MQTT (Mosquitto) -> backend (FastAPI + SQLite) -> dashboard
 # Subir:   docker compose up --build
-# Dashboard: http://localhost:8000
+# Dashboard: http://localhost:8085
 
 services:
   broker:
@@ -21,7 +21,7 @@ services:
       DB_PATH: /dados/moinho.db
       STALE_S: "5"
     ports:
-      - "8000:8000"
+      - "8085:8085"
     volumes:
       - backend-dados:/dados
     depends_on:
