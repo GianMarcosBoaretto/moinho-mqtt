@@ -245,7 +245,9 @@ mesmo tempo, porque são dispositivos diferentes.
 2. Suba o sistema (seção 2). No jeito B, o `rodar-local.ps1` já escuta na rede.
 3. No topo do dashboard aparece "📱 no celular, abra **http://IP-DO-PC:8000/celular**".
    Digite esse endereço no navegador do celular.
-4. No dashboard, troque o seletor ao lado de "Supervisório" para **celular01**.
+4. O dashboard em `localhost:8000` **troca sozinho para o celular01** quando ele começa a
+   transmitir; se abrir a página depois, ele já abre no celular. A faixa **Dispositivos**,
+   no topo, mostra todos ao vivo (🏭 moinho01, 📱 celular01); clique num deles para trocar.
 
 ### O caminho do dado
 

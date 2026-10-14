@@ -377,7 +377,8 @@ app = FastAPI(title="Supervisorio moinho", lifespan=ciclo_de_vida)
 
 
 # rotas que o dashboard e o celular consultam a cada 1-2 s: o painel pode esconde-las
-ROTAS_POLLING = {"/api/estado", "/api/historico", "/api/eventos", "/api/dispositivos", "/api/gateway/situacao"}
+ROTAS_POLLING = {"/api/estado", "/api/historico", "/api/eventos", "/api/dispositivos", "/api/resumo",
+                 "/api/gateway/situacao"}
 ROTAS_NAO_CAPTURADAS = {"/api/trafego", "/favicon.ico"}
 
 
@@ -422,6 +423,20 @@ def dispositivos():
     with conectar_db() as con:
         linhas = con.execute("SELECT device_id FROM leituras UNION SELECT device_id FROM dispositivos").fetchall()
     return sorted(l[0] for l in linhas)
+
+
+@app.get("/api/resumo")
+def resumo():
+    """Ultima leitura de cada dispositivo (faixa de dispositivos no topo do dashboard)."""
+    agora = datetime.now(timezone.utc)
+    saida = []
+    with conectar_db() as con:
+        for (dev,) in con.execute("SELECT DISTINCT device_id FROM leituras ORDER BY device_id").fetchall():
+            u = ultima_leitura(con, dev)
+            idade = idade_s(u, agora)
+            saida.append({"device_id": dev, "corrente_a": u["corrente_a"], "estado": u["estado"],
+                          "motivo": u["motivo"], "idade_s": round(idade, 1), "stale": idade > STALE_S})
+    return saida
 
 
 def ip_na_rede_local():

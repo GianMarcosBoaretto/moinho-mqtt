@@ -43,6 +43,20 @@
   th { color: var(--suave); font-weight: 500; }
   .num { font-variant-numeric: tabular-nums; }
 
+  /* ---------- faixa de dispositivos ---------- */
+  .faixa { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .faixa .rotulo { margin-right: 2px; }
+  .disp { font: inherit; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; border: 2px solid var(--borda); background: #fff; cursor: pointer; text-align: left; }
+  .disp.selecionado { border-color: #2563eb; box-shadow: 0 0 0 3px #dbeafe; }
+  .disp .bola { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); flex: none; }
+  .disp.parado { color: var(--cinza); }
+  .disp.parado .bola { background: var(--cinza); }
+  .disp.alerta .bola { background: var(--alerta); }
+  .disp b { font-variant-numeric: tabular-nums; }
+  .disp small { display: block; color: var(--suave); font-size: 12px; }
+  .aviso-novo { display: none; padding: 10px 14px; border-radius: 8px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+  .aviso-novo.visivel { display: block; }
+
   /* ---------- painel de trafego ---------- */
   aside { position: sticky; top: 16px; display: flex; flex-direction: column; max-height: calc(100vh - 32px); padding: 0; overflow: hidden; }
   aside .topo { padding: 12px 14px 8px; border-bottom: 1px solid var(--borda); }
@@ -83,6 +97,9 @@
 
 <div class="layout">
 <main>
+  <section class="faixa" id="faixa"><span class="rotulo">Dispositivos</span></section>
+  <div class="aviso-novo" id="aviso-novo"></div>
+
   <div class="banner" id="banner">
     <strong id="banner-titulo"></strong>
     <p id="banner-causa"></p>
@@ -149,7 +166,9 @@
 <script>
 const LIMITE_A = 100;
 const $ = (id) => document.getElementById(id);
-let DEVICE = new URLSearchParams(location.search).get("device") || "moinho01";
+// Sem ?device= na URL, abre o celular se ele estiver transmitindo (ver atualizarResumo)
+const DEVICE_DA_URL = new URLSearchParams(location.search).get("device");
+let DEVICE = DEVICE_DA_URL || "moinho01";
 
 const hora = (iso) => iso ? new Date(iso).toLocaleTimeString("pt-BR") : "—";
 const horaMs = (iso) => {
@@ -178,11 +197,57 @@ async function atualizarDispositivos() {
     sel.value = DEVICE;
   } catch { /* backend fora: o banner ja avisa */ }
 }
-$("dispositivo").addEventListener("change", (e) => {
-  DEVICE = e.target.value;
+function selecionar(device) {
+  if (device === DEVICE) return;
+  DEVICE = device;
+  $("dispositivo").value = device;
   history.replaceState(null, "", `?device=${encodeURIComponent(DEVICE)}`);
   atualizar();
-});
+  atualizarResumo();
+}
+$("dispositivo").addEventListener("change", (e) => selecionar(e.target.value));
+
+// ------------------------------------------------- faixa de dispositivos
+// Mostra todos os dispositivos ao vivo. Quando um dispositivo NOVO comeca a transmitir
+// com a tela aberta (ex.: alguem abriu /celular), o dashboard troca para ele sozinho.
+const icone = (d) => (/^celular/.test(d) ? "📱" : "🏭");
+let conhecidos = null;   // dispositivos que ja existiam quando a tela abriu
+
+async function atualizarResumo() {
+  let lista;
+  try { lista = await buscar("/api/resumo"); } catch { return; }
+
+  if (conhecidos === null) {
+    conhecidos = new Set(lista.map((d) => d.device_id));
+    // sem ?device=: celular transmitindo tem prioridade; senao, o primeiro que estiver transmitindo
+    const ativo = lista.find((d) => !d.stale && /^celular/.test(d.device_id)) || lista.find((d) => !d.stale);
+    if (!DEVICE_DA_URL && ativo) selecionar(ativo.device_id);
+  } else {
+    const novo = lista.find((d) => !conhecidos.has(d.device_id) && !d.stale);
+    for (const d of lista) conhecidos.add(d.device_id);
+    if (novo) {
+      $("aviso-novo").textContent = `${icone(novo.device_id)} ${novo.device_id} começou a transmitir — mostrando os dados dele. ` +
+        `Para voltar, clique em outro dispositivo acima.`;
+      $("aviso-novo").classList.add("visivel");
+      setTimeout(() => $("aviso-novo").classList.remove("visivel"), 8000);
+      selecionar(novo.device_id);
+    }
+  }
+
+  const faixa = $("faixa");
+  faixa.querySelectorAll(".disp").forEach((b) => b.remove());
+  for (const d of lista) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "disp" + (d.device_id === DEVICE ? " selecionado" : "") + (d.stale ? " parado" : "") +
+      (!d.stale && d.estado !== "operando" ? " alerta" : "");
+    const valor = d.corrente_a === null ? "falha" : `${d.corrente_a.toFixed(1)} A`;
+    b.innerHTML = `<span class="bola"></span><span>${icone(d.device_id)} <b>${esc(d.device_id)}</b> · ${valor}
+      <small>${d.stale ? `parado há ${Math.round(d.idade_s)}s` : d.estado.toUpperCase() + " · transmitindo"}</small></span>`;
+    b.addEventListener("click", () => selecionar(d.device_id));
+    faixa.appendChild(b);
+  }
+}
 
 // ------------------------------------------------------------------ estado
 function causaDaFalha(e) {
@@ -360,11 +425,13 @@ buscar("/api/rede").then((r) => {
 }).catch(() => {});
 
 atualizarDispositivos();
+atualizarResumo();
 atualizar();
 atualizarTrafego();
 setInterval(atualizar, 1000);          // polling de 1 s
 setInterval(atualizarTrafego, 1000);
 setInterval(atualizarDispositivos, 5000);
+setInterval(atualizarResumo, 1000);
 </script>
 </body>
 </html>
