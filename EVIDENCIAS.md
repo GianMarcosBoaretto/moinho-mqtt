@@ -3,13 +3,55 @@
 Evidência de que o dado foi **enviado** (log do simulador), **recebido** (log do backend
 e banco) e **usado** (dashboard), em operação normal e com falha de comunicação.
 
+## Evidência registrada (14/10/2026)
+
+### Teste de falha automatizado — 14 de 14 verificações aprovadas
+
+`scripts/teste_falha_local.ps1` (Windows, sem Docker) — broker derrubado por 32 s.
+Resultado completo, logs do nó, do supervisório e do broker e os JSON de cada etapa em
+[evidencias/teste-falha-local-2026-10-14/](evidencias/teste-falha-local-2026-10-14/)
+(comece por `resultado.txt`).
+
+### Prints
+
+| # | O que mostra | Arquivo |
+|---|---|---|
+| 1 | Operação normal: corrente atual, OPERANDO, broker conectado, gráfico em azul, painel de tráfego recebendo uma mensagem MQTT por segundo | ![](evidencias/prints/1-normal.jpg) |
+| 2 | **Broker fora:** banner "Comunicação perdida há 17s — último dado recebido às 09:32:51", causa ("não alcança o broker"), valores em cinza com "VALOR ANTIGO", faixa "sem dados", painel com "conexão PERDIDA". No mesmo momento o simulador desarmou sozinho ("SEM REDE") | ![](evidencias/prints/2-degradado.jpg) |
+| 3 | **Volta:** histórico reconstruído (trecho laranja = veio do buffer), pico de 129,8 A, DESARMADO/sobrecorrente, desarme nos eventos às **09:32:56** (horário real, chegou às 09:33:19), lacunas 0 | ![](evidencias/prints/3-reconstruido.jpg) |
+| 4 | Painel de tráfego com uma mensagem aberta: tópico, QoS 1, payload com `seq` e `ts_origem` | ![](evidencias/prints/4-trafego-mqtt.png) |
+| 5 | Celular fazendo o papel do moinho01 (página `/celular`) | ![](evidencias/prints/5-celular.jpg) |
+| 6 | Caminho de cada leitura do celular: `POST /api/gateway/corrente` (HTTP) → `PUBLISH` da ponte no broker → `PUBLISH` entregue ao assinante (MQTT) | ![](evidencias/prints/6-trafego-celular-http-mqtt.png) |
+
+Log do simulador no momento do print 2 (proteção atuando sem rede):
+
+```
+09:32:56 [PROTECAO] estado=desarmado motivo=sobrecorrente corrente=129.8 A rele=ABERTO (decidido localmente, SEM REDE)
+09:32:57 [PROTECAO] sem broker ha 5s - protecao local ATIVA: estado=desarmado corrente=0.1 A | buffer 7/300 descartadas=0
+09:33:02 [PROTECAO] sem broker ha 10s - protecao local ATIVA: estado=desarmado corrente=0.3 A | buffer 12/300 descartadas=0
+09:33:19 [MQTT] conectado ao broker (ficou fora 26.8s); buffer com 29 mensagens para reenviar
+09:33:19 [BUFFER] flush: 29 mensagens reenviadas com ts_origem/seq originais (restam 0)
+```
+
+> Os prints e o teste foram feitos com o broker MQTT em Python (amqtt), porque a máquina
+> não tinha Docker. Com Docker, o `scripts/teste_falha.sh` faz o mesmo roteiro com o
+> Mosquitto.
+
 ## Como gerar
+
+Com Docker:
 
 ```bash
 ./scripts/teste_falha.sh
 ```
 
-O script leva cerca de 1 min 30 s. Deixe <http://localhost:8000> aberto num navegador ao
+Sem Docker (Windows):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts	este_falha_local.ps1
+```
+
+O script leva cerca de 1 min 30 s. Deixe <http://localhost:8085> aberto num navegador ao
 lado do terminal: quando aparecer `>>> PRINT:`, tire o print indicado. No final ele
 escreve `RESULTADO: todas as verificacoes passaram` (ou lista o que falhou) e salva em
 `logs/<data-hora>/`:

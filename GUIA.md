@@ -24,7 +24,7 @@ Todos os comandos abaixo rodam na pasta do projeto (`moinho-mqtt`).
 docker compose up --build
 ```
 
-Espere aparecer `[MQTT] conectado ao broker` nos logs e abra <http://localhost:8000>.
+Espere aparecer `[MQTT] conectado ao broker` nos logs e abra <http://localhost:8085>.
 Para parar: `Ctrl+C`, ou `docker compose down` em outro terminal.
 
 ### Jeito B — sem Docker (Windows)
@@ -46,7 +46,7 @@ Para parar tudo, feche as três janelas.
 
 ## 3. Usando o dashboard
 
-Abra <http://localhost:8000>. A tela atualiza sozinha a cada 1 segundo.
+Abra <http://localhost:8085>. A tela atualiza sozinha a cada 1 segundo.
 
 | Parte da tela | O que mostra |
 |---|---|
@@ -111,9 +111,9 @@ São três lugares, um para cada etapa do caminho:
    gráfico azul cresce para a direita.
 
 A API também pode ser aberta direto no navegador:
-<http://localhost:8000/api/estado> ·
-<http://localhost:8000/api/historico> ·
-<http://localhost:8000/api/eventos>.
+<http://localhost:8085/api/estado> ·
+<http://localhost:8085/api/historico> ·
+<http://localhost:8085/api/eventos>.
 
 ## 6. Roteiro de teste manual
 
@@ -170,7 +170,7 @@ reenvie de propósito uma leitura que já foi gravada:
 - **Jeito A:** o `teste_falha.sh` faz isso sozinho na etapa 5 (ver a seção 7).
 - **Jeito B:**
   ```powershell
-  .\.venv\Scripts\python -c "import json,urllib.request as u,paho.mqtt.publish as p; l=json.load(u.urlopen('http://localhost:8000/api/historico'))[-3]; m=json.dumps(dict(schema=1,device_id='moinho01',**{k:l[k] for k in ('seq','ts_origem','corrente_a','estado','motivo')})); [p.single('fabrica/planta1/moinho01/corrente',m,qos=1) for _ in range(2)]; print('reenviado seq',l['seq'])"
+  .\.venv\Scripts\python -c "import json,urllib.request as u,paho.mqtt.publish as p; l=json.load(u.urlopen('http://localhost:8085/api/historico'))[-3]; m=json.dumps(dict(schema=1,device_id='moinho01',**{k:l[k] for k in ('seq','ts_origem','corrente_a','estado','motivo')})); [p.single('fabrica/planta1/moinho01/corrente',m,qos=1) for _ in range(2)]; print('reenviado seq',l['seq'])"
   ```
 
 **Resultado esperado:** a janela `BACKEND` mostra duas linhas
@@ -184,7 +184,18 @@ descartadas" sobe 2. O histórico **não** ganha ponto novo.
 | Derrube o broker e espere **mais de 5 min** | log do simulador: "[BUFFER] cheio (300): descartando a mais antiga seq=..." |
 | Religue o broker | dashboard mostra "lacunas de seq: 1 (N amostras)": o que passou de 5 min se perdeu, e o sistema **avisa** em vez de esconder |
 
-## 7. Teste automatizado (só com Docker)
+## 7. Teste automatizado
+
+Sem Docker (Windows), com o `rodar-local` fechado:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts	este_falha_local.ps1
+```
+
+Ele sobe tudo sozinho em segundo plano, com banco próprio, executa T1, T4, T5 e T6 e
+grava o resultado em `logs\local-<data-hora>esultado.txt`. Leva cerca de 1 minuto.
+
+Com Docker:
 
 ```bash
 ./scripts/teste_falha.sh
@@ -225,11 +236,11 @@ abrir** e o Monitor Serial mostra "SEM REDE".
 |---|---|---|
 | Dashboard abre mas fica "Nenhum dado recebido do nó ainda" | simulador não está rodando ou não achou o broker | veja a janela `SIMULADOR`; se diz "conectando" sem "conectado", o broker está fora |
 | Simulador conecta e desconecta a cada ~3 s | **dois simuladores** abertos com o mesmo `client_id` (o broker derruba o mais antigo) | feche as janelas repetidas e deixe um só |
-| `error while attempting to bind on address ... 8000` | já tem um backend rodando na porta 8000 | feche a janela `BACKEND` antiga |
+| `error while attempting to bind on address ... 8085` | já tem um backend rodando na porta 8085 | feche a janela `BACKEND` antiga |
 | `rodar-local.ps1 não pode ser carregado ... execução de scripts desabilitada` | política de execução do Windows | rode com `powershell -ExecutionPolicy Bypass -File ...`, como neste guia |
 | Banner fica vermelho com o broker no ar | relógio do PC errado, ou o backend não reconectou | confira `broker` no topo do dashboard; se estiver "DESCONECTADO", reinicie o backend |
 | Quero recomeçar do zero | — | feche tudo e apague `backend/moinho.db` e a pasta `simulador/estado/`. No Docker: `docker compose down -v` |
-| Celular não abre a página `/celular` | celular em outra rede, ou firewall bloqueando a porta 8000 | confira se o celular está no **mesmo Wi-Fi** do PC; libere o Python (ou a porta 8000 TCP) no Firewall do Windows |
+| Celular não abre a página `/celular` | celular em outra rede, ou firewall bloqueando a porta 8085 | confira se o celular está no **mesmo Wi-Fi** do PC; libere o Python (ou a porta 8085 TCP) no Firewall do Windows |
 | Celular abre a página mas para de transmitir | tela apagou: o navegador do celular congela a página em segundo plano | deixe a tela ligada e o navegador em primeiro plano durante a demonstração |
 
 ## 10. Celular como nó transmissor
@@ -247,9 +258,9 @@ página do celular mostra um aviso vermelho.
    - jeito B: `powershell -ExecutionPolicy Bypass -File scripts\rodar-local.ps1 -SemSimulador`
      (ele já escuta na rede);
    - jeito A: `docker compose up --build broker backend`.
-3. No topo do dashboard aparece "📱 no celular, abra **http://IP-DO-PC:8000/celular**".
+3. No topo do dashboard aparece "📱 no celular, abra **http://IP-DO-PC:8085/celular**".
    Digite esse endereço no navegador do celular.
-4. Abra `localhost:8000` no PC. O dashboard mostra o **moinho01**, que agora é o seu
+4. Abra `localhost:8085` no PC. O dashboard mostra o **moinho01**, que agora é o seu
    celular: mexa na carga no celular e veja a corrente mudar no PC. A faixa
    **Dispositivos**, no topo, mostra todos os dispositivos ao vivo; clique num deles para
    trocar.
@@ -303,7 +314,7 @@ o backend enviou ou recebeu, com a mais nova em cima:
 
 | Tipo | Exemplo | Significa |
 |---|---|---|
-| `HTTP` | `192.168.1.40 → backend :8000` · `POST /api/gateway/corrente -> 200 · 4 ms` | requisição que chegou na API: quem pediu (IP), o quê, status e tempo de resposta |
+| `HTTP` | `192.168.1.40 → backend :8085` · `POST /api/gateway/corrente -> 200 · 4 ms` | requisição que chegou na API: quem pediu (IP), o quê, status e tempo de resposta |
 | `MQTT` ⇢ (TX) | `supervisorio-planta1 (ponte HTTP) ⇢ broker` · `PUBLISH fabrica/planta1/moinho01/corrente QoS1` | o backend publicou no broker (ponte do celular) |
 | `MQTT` ⇠ (RX) | `moinho01 (via broker) ⇠ supervisorio-planta1` · `PUBLISH fabrica/planta1/moinho01/corrente QoS1` | mensagem que o broker entregou ao assinante |
 | `MQTT` ⇄ | `CONNECT ok` / `conexao PERDIDA` | o backend conectou ou perdeu o broker |
@@ -323,4 +334,4 @@ inteiro do dado, visível. Bom para print.
 > Não é captura de pacotes de rede como o Wireshark de verdade: o painel mostra o que
 > passou **pelo backend**. Mensagens que o broker trocou só com outros clientes, e os
 > pacotes de controle do MQTT (PUBACK, PINGREQ), não aparecem. Para ver os pacotes
-> crus, use o Wireshark com o filtro `tcp.port == 1883 || tcp.port == 8000`.
+> crus, use o Wireshark com o filtro `tcp.port == 1883 || tcp.port == 8085`.

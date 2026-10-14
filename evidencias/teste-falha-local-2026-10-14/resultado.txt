@@ -1,0 +1,41 @@
+﻿
+== 1/6 subindo broker, backend e simulador
+  coletando 12 s de dados normais...
+  estado salvo em 01_normal.json
+  [OK]    dado atual (nao STALE)
+  [OK]    backend gravou 14 leituras
+
+== 2/6 derrubando o broker
+  broker parado as 09:29:44
+
+== 3/6 sobrecorrente SEM REDE: a protecao local tem que desarmar
+  [OK]    simulador desarmou localmente com o broker fora
+  sim| 09:29:50 [PROTECAO] estado=desarmado motivo=sobrecorrente corrente=129.5 A rele=ABERTO (decidido localmente, SEM REDE)
+  estado salvo em 02_degradado.json
+  [OK]    backend marcou o dado como STALE (idade 12.5 s)
+  [OK]    backend sabe que perdeu o broker
+  [OK]    supervisorio ainda NAO sabe do desarme (o dado nao chegou) - por isso o banner
+  aguardando mais 15 s com o broker fora (enche o buffer do simulador)...
+  sim| 09:30:05 [PROTECAO] sem broker ha 20s - protecao local ATIVA: estado=desarmado corrente=0.0 A | buffer 20/300 descartadas=0
+  sim| 09:30:10 [PROTECAO] sem broker ha 25s - protecao local ATIVA: estado=desarmado corrente=0.3 A | buffer 25/300 descartadas=0
+
+== 4/6 religando o broker
+  broker de volta as 09:30:15; aguardando o flush do buffer...
+  estado salvo em 03_reconstruido.json
+  [OK]    dado atual de novo
+  [OK]    o desarme feito durante a falha chegou
+  [OK]    nenhuma lacuna de seq: historico completo
+  [OK]    26 leituras chegaram do buffer com ts_origem/seq originais
+  [OK]    desarme registrado com o horario em que aconteceu: 2026-10-14T12:29:50.227Z
+  [OK]    historico ordenado por ts_origem
+  sim| 09:30:17 [MQTT] conectado ao broker (ficou fora 32.2s); buffer com 31 mensagens para reenviar
+  sim| 09:30:17 [BUFFER] flush: 31 mensagens reenviadas com ts_origem/seq originais (restam 0)
+
+== 5/6 idempotencia: reenviando de proposito uma leitura ja gravada
+  payload repetido: {"corrente_a":0.2,"motivo":"sobrecorrente","schema":1,"device_id":"moinho01","ts_origem":"2026-10-14T12:30:19.527Z","seq":1000000049,"estado":"desarmado"}
+  [OK]    2 duplicados descartados pela chave (device_id, seq) (0 -> 2)
+
+== 6/6 rearme e encerramento
+  [OK]    rearmado: OPERANDO de novo
+
+RESULTADO: todas as verificacoes passaram

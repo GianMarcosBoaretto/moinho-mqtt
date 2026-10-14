@@ -1,0 +1,20 @@
+09:29:29 [SIM] moinho01 boot=1 limite=100 A buffer=300
+09:29:29 [MQTT] conectando em 127.0.0.1:1883 como client_id=sim-moinho01
+09:29:29 [PROTECAO] sem broker ha 0s - protecao local ATIVA: estado=operando corrente=72.8 A | buffer 1/300 descartadas=0
+09:29:29 [MQTT] conectado ao broker (ficou fora 0.0s); buffer com 1 mensagens para reenviar
+09:29:44 [MQTT] broker inacessivel -> monitoramento suspenso. A PROTECAO LOCAL CONTINUA ATUANDO; amostras vao para o buffer.
+09:29:44 [PROTECAO] sem broker ha 0s - protecao local ATIVA: estado=operando corrente=76.6 A | buffer 0/300 descartadas=0
+09:29:50 [CMD] sobrecorrente
+09:29:50 [PROTECAO] sem broker ha 5s - protecao local ATIVA: estado=operando corrente=130.7 A | buffer 4/300 descartadas=0
+09:29:50 [PROTECAO] estado=desarmado motivo=sobrecorrente corrente=129.5 A rele=ABERTO (decidido localmente, SEM REDE)
+09:29:55 [PROTECAO] sem broker ha 10s - protecao local ATIVA: estado=desarmado corrente=0.2 A | buffer 10/300 descartadas=0
+09:30:00 [PROTECAO] sem broker ha 15s - protecao local ATIVA: estado=desarmado corrente=0.2 A | buffer 15/300 descartadas=0
+09:30:05 [PROTECAO] sem broker ha 20s - protecao local ATIVA: estado=desarmado corrente=0.0 A | buffer 20/300 descartadas=0
+09:30:10 [PROTECAO] sem broker ha 25s - protecao local ATIVA: estado=desarmado corrente=0.3 A | buffer 25/300 descartadas=0
+09:30:15 [PROTECAO] sem broker ha 31s - protecao local ATIVA: estado=desarmado corrente=0.2 A | buffer 30/300 descartadas=0
+09:30:17 [MQTT] conectado ao broker (ficou fora 32.2s); buffer com 31 mensagens para reenviar
+09:30:17 [BUFFER] flush: 31 mensagens reenviadas com ts_origem/seq originais (restam 0)
+09:30:27 [CMD] normal
+09:30:28 [CMD] rearmar
+09:30:28 [PROTECAO] estado=operando motivo=None corrente=77.6 A rele=FECHADO (decidido localmente, online)
+09:30:28 [BUFFER] flush: 2 mensagens reenviadas com ts_origem/seq originais (restam 0)
