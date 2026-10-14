@@ -1,0 +1,9 @@
+# Broker MQTT em Python (amqtt) para rodar SEM Docker, so na maquina local.
+# Nao tem persistencia: se fechar, perde retained e sessoes (o Mosquitto do compose guarda).
+listeners:
+  default:
+    type: tcp
+    bind: 0.0.0.0:1883
+plugins:
+  amqtt.plugins.authentication.AnonymousAuthPlugin:
+    allow_anonymous: true
