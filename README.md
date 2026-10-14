@@ -55,6 +55,13 @@ Para acompanhar os logs:
 docker compose logs -f simulador backend
 ```
 
+### Celular como nó e painel de tráfego
+
+Com o celular no mesmo Wi-Fi, abra `http://IP-DO-PC:8000/celular`. O endereço aparece no
+topo do dashboard. O celular vira o nó `celular01`: envia leituras por HTTP, o backend
+publica no MQTT e o dashboard mostra, no painel **Tráfego**, cada requisição e mensagem
+(estilo Wireshark). Detalhes no [GUIA.md](GUIA.md), seções 10 e 11.
+
 ### Teste de falha automatizado
 
 ```bash
@@ -109,7 +116,9 @@ mosquitto/                configuração do broker (persistência ligada)
 simulador/simulador.py    nó de medição simulado (proteção + telemetria + buffer)
 firmware/moinho01/        sketch do ESP32, mesma lógica e mesmo contrato
 backend/app.py            assinante MQTT, SQLite, API HTTP
-backend/static/index.html dashboard (HTML + JS puro, polling 1 s)
+backend/static/index.html dashboard (HTML + JS puro, polling 1 s) + painel de tráfego
+backend/static/celular.html página do celular como nó transmissor
+GUIA.md                   guia de uso e roteiro de teste
 scripts/teste_falha.sh    teste de falha de ponta a ponta
 scripts/comando.sh        envia comando ao simulador
 docs/                     nomeação, sincronização, falha, decisões, arquitetura

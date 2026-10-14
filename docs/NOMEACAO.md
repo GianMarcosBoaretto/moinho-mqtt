@@ -11,6 +11,11 @@ payload e banco — para que nunca haja dúvida sobre **de quem** é uma leitura
 | `device_id` | `moinho01` | tópico, payload, chave do banco | um por **equipamento monitorado**; nunca muda, mesmo trocando o ESP32 |
 | `client_id` MQTT | `esp32-moinho01` (placa) · `sim-moinho01` (simulador) · `supervisorio-planta1` (backend) | conexão MQTT | único e estável por **conexão**; dois clientes com o mesmo id derrubam um ao outro |
 
+O celular (`device_id` = `celular01`) não abre conexão MQTT própria: ele envia por HTTP
+para `POST /api/gateway/<tipo>`, e o backend publica no tópico dele com a conexão
+`supervisorio-planta1`. O `device_id` passa por validação (`[a-z0-9_-]`, até 32
+caracteres) antes de virar tópico, para que ninguém publique em `#` ou em outro ramo.
+
 O `device_id` identifica o **moinho**; o `client_id` identifica **quem está conectado**.
 Por isso placa e simulador têm `client_id` diferentes, mas publicam com o mesmo
 `device_id`: o simulador faz o papel da placa. Os dois nunca devem rodar ao mesmo tempo,

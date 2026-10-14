@@ -1,6 +1,8 @@
 # Guia de uso e de teste
 
 Passo a passo para rodar o protótipo, usar o dashboard e testar cada requisito da entrega.
+Também mostra como usar um **celular como nó transmissor** (seção 10) e o **painel de
+tráfego** do dashboard, que mostra cada requisição e mensagem (seção 11).
 Para o porquê das decisões, veja o [README](README.md) e a pasta [docs/](docs/).
 
 ## 1. O que você precisa
@@ -227,3 +229,91 @@ abrir** e o Monitor Serial mostra "SEM REDE".
 | `rodar-local.ps1 não pode ser carregado ... execução de scripts desabilitada` | política de execução do Windows | rode com `powershell -ExecutionPolicy Bypass -File ...`, como neste guia |
 | Banner fica vermelho com o broker no ar | relógio do PC errado, ou o backend não reconectou | confira `broker` no topo do dashboard; se estiver "DESCONECTADO", reinicie o backend |
 | Quero recomeçar do zero | — | feche tudo e apague `backend/moinho.db` e a pasta `simulador/estado/`. No Docker: `docker compose down -v` |
+| Celular não abre a página `/celular` | celular em outra rede, ou firewall bloqueando a porta 8000 | confira se o celular está no **mesmo Wi-Fi** do PC; libere o Python (ou a porta 8000 TCP) no Firewall do Windows |
+| Celular abre a página mas para de transmitir | tela apagou: o navegador do celular congela a página em segundo plano | deixe a tela ligada e o navegador em primeiro plano durante a demonstração |
+
+## 10. Celular como nó transmissor
+
+Um celular pode fazer o papel do ESP32. A página `/celular` roda **no navegador do
+celular** a mesma lógica do nó: proteção local a cada 100 ms, buffer circular de 300 e o
+mesmo payload, com `device_id` = `celular01`. O simulador pode continuar rodando ao
+mesmo tempo, porque são dispositivos diferentes.
+
+### Como abrir
+
+1. PC e celular na **mesma rede Wi-Fi**.
+2. Suba o sistema (seção 2). No jeito B, o `rodar-local.ps1` já escuta na rede.
+3. No topo do dashboard aparece "📱 no celular, abra **http://IP-DO-PC:8000/celular**".
+   Digite esse endereço no navegador do celular.
+4. No dashboard, troque o seletor ao lado de "Supervisório" para **celular01**.
+
+### O caminho do dado
+
+```
+celular ──HTTP POST /api/gateway/corrente──▶ backend (ponte) ──MQTT QoS 1──▶ broker ──▶ assinante ──▶ SQLite ──▶ dashboard
+   ▲                                              │
+   └────── resposta 200 + GET /api/gateway/situacao ("o PC gravou até o seq X")
+```
+
+O navegador do celular não fala MQTT puro, só HTTP. Por isso o backend recebe a leitura
+por HTTP e **publica no broker** no tópico `fabrica/planta1/celular01/corrente`, igual a
+um ESP32. Dali em diante o caminho é o mesmo do simulador. O celular **envia** a leitura e
+**recebe** de volta a confirmação: a resposta do POST e, a cada 2 s, quantas leituras o PC
+já gravou, o último `seq` e o atraso.
+
+### O que dá para fazer na tela do celular
+
+| Controle | Faz o papel de | Resultado |
+|---|---|---|
+| Controle deslizante "Carga do moinho" | potenciômetro | acima de 100 A por 0,3 s: **DESARMADO · sobrecorrente** |
+| 🛑 Emergência | botoeira (liga/desliga) | **EMERGENCIA**, motor para |
+| ↺ Rearmar | botão de rearme | volta a OPERANDO, se a causa sumiu e a emergência foi solta |
+| ⚡ Falha de sensor | sensor rompido (liga/desliga) | **DESARMADO · falha de sensor** |
+| 📵 Simular queda | cortar a comunicação | nada sai do celular; as leituras vão para o buffer |
+
+O "Log de envio e resposta" mostra cada requisição: `→ POST corrente seq …0042 72.1 A ← 200 · 4 ms`.
+
+### Teste de queda pelo celular
+
+1. Toque **📵 Simular queda**. Em 5 s o dashboard (em `celular01`) mostra o banner de
+   comunicação perdida.
+2. Arraste a carga para **130 A**. O celular desarma **sozinho**, e o log diz "decidido no
+   celular, SEM REDE". O contador "no buffer" sobe.
+3. Volte a carga para ~72 A e toque **📵 Simular queda** de novo. O log mostra "flush do
+   buffer: N mensagens reenviadas", e o celular exibe "PC confirmou: ... lacunas 0".
+4. No dashboard, o desarme aparece nos eventos com a hora em que aconteceu no celular.
+5. Toque **↺ Rearmar**.
+
+Também vale desligar o Wi-Fi do celular de verdade. Com o Wi-Fi desligado a página
+continua aberta e protegendo, e reenvia tudo quando a rede volta. Recarregar a página
+apaga o buffer, porque ele fica na memória do navegador. As mensagens que estavam nele
+viram lacuna de `seq`, e o dashboard mostra isso.
+
+## 11. Painel de tráfego (o "Wireshark" do dashboard)
+
+À direita do dashboard fica o painel **Tráfego**. Ele mostra, ao vivo, cada mensagem que
+o backend enviou ou recebeu, com a mais nova em cima:
+
+| Tipo | Exemplo | Significa |
+|---|---|---|
+| `HTTP` | `192.168.1.40 → backend :8000` · `POST /api/gateway/corrente -> 200 · 4 ms` | requisição que chegou na API: quem pediu (IP), o quê, status e tempo de resposta |
+| `MQTT` ⇢ (TX) | `supervisorio-planta1 (ponte HTTP) ⇢ broker` · `PUBLISH fabrica/planta1/celular01/corrente QoS1` | o backend publicou no broker (ponte do celular) |
+| `MQTT` ⇠ (RX) | `moinho01 (via broker) ⇠ supervisorio-planta1` · `PUBLISH fabrica/planta1/moinho01/corrente QoS1` | mensagem que o broker entregou ao assinante |
+| `MQTT` ⇄ | `CONNECT ok` / `conexao PERDIDA` | o backend conectou ou perdeu o broker |
+
+- **Clique numa linha** para abrir o conteúdo: payload JSON, tópico, QoS, retained,
+  corpo enviado e resposta do HTTP, IP e navegador de quem chamou.
+- Uma **barra laranja à esquerda** marca o que veio do celular.
+- Uma **linha vermelha** é erro HTTP (ex.: `503` com o broker fora, `422` com payload inválido).
+- **Filtros:** HTTP, MQTT e **ocultar polling**, ligado por padrão, que esconde as consultas
+  que o próprio dashboard e o celular fazem a cada 1–2 s. **Pausar** congela a lista para
+  ler com calma; **limpar** esvazia.
+
+Uma leitura do celular aparece no painel como **três linhas**, na ordem: o `POST` (HTTP), o
+`PUBLISH` da ponte (MQTT ⇢) e o `PUBLISH` entregue pelo broker (MQTT ⇠). É o caminho
+inteiro do dado, visível. Bom para print.
+
+> Não é captura de pacotes de rede como o Wireshark de verdade: o painel mostra o que
+> passou **pelo backend**. Mensagens que o broker trocou só com outros clientes, e os
+> pacotes de controle do MQTT (PUBACK, PINGREQ), não aparecem. Para ver os pacotes
+> crus, use o Wireshark com o filtro `tcp.port == 1883 || tcp.port == 8000`.
