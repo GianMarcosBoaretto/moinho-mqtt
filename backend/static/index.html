@@ -3,25 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Moinho 01 · Supervisório</title>
+<title>Supervisório do moinho</title>
 <style>
   :root {
     --fundo: #f4f5f7; --cartao: #fff; --texto: #1d2330; --suave: #6b7280; --borda: #e2e5ea;
     --ok: #15803d; --ok-fundo: #dcfce7; --alerta: #b91c1c; --alerta-fundo: #fee2e2;
-    --aviso: #92400e; --aviso-fundo: #fef3c7; --linha: #2563eb; --buffer: #d97706; --cinza: #9ca3af;
+    --linha: #2563eb; --buffer: #d97706; --cinza: #9ca3af;
+    --http: #1d4ed8; --http-fundo: #dbeafe; --mqtt: #7e22ce; --mqtt-fundo: #f3e8ff;
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 15px/1.4 system-ui, "Segoe UI", sans-serif; background: var(--fundo); color: var(--texto); }
-  header { padding: 14px 20px; background: #1d2330; color: #fff; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
-  header h1 { margin: 0; font-size: 18px; }
+  header { padding: 12px 20px; background: #1d2330; color: #fff; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 20px; }
+  header h1 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 10px; }
+  header select { font: inherit; font-size: 15px; padding: 3px 6px; border-radius: 6px; border: 0; }
   header small { color: #cbd5e1; }
-  main { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
+  header a { color: #93c5fd; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 480px; gap: 14px; padding: 16px; align-items: start; }
+  @media (max-width: 1150px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  main { display: grid; gap: 14px; min-width: 0; }
   .banner { display: none; padding: 12px 16px; border-radius: 8px; background: var(--alerta-fundo); color: var(--alerta); border: 1px solid #fca5a5; }
   .banner.visivel { display: block; }
   .banner strong { font-size: 16px; }
   .banner p { margin: 4px 0 0; color: #7f1d1d; }
-  .grade { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-  .cartao { background: var(--cartao); border: 1px solid var(--borda); border-radius: 8px; padding: 14px 16px; }
+  .grade { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .cartao { background: var(--cartao); border: 1px solid var(--borda); border-radius: 8px; padding: 14px 16px; min-width: 0; }
   .rotulo { color: var(--suave); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
   .valor { font-size: 40px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .antigo { color: var(--cinza) !important; }
@@ -30,21 +35,53 @@
   .selo.operando { background: var(--ok-fundo); color: var(--ok); }
   .selo.desarmado, .selo.emergencia { background: var(--alerta-fundo); color: var(--alerta); }
   .detalhe { color: var(--suave); font-size: 13px; margin-top: 6px; }
-  canvas { width: 100%; height: 260px; display: block; }
+  canvas { width: 100%; height: 240px; display: block; }
   .legenda { display: flex; gap: 16px; font-size: 13px; color: var(--suave); flex-wrap: wrap; }
   .legenda i { display: inline-block; width: 12px; height: 3px; vertical-align: middle; margin-right: 4px; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--borda); }
   th { color: var(--suave); font-weight: 500; }
   .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- painel de trafego ---------- */
+  aside { position: sticky; top: 16px; display: flex; flex-direction: column; max-height: calc(100vh - 32px); padding: 0; overflow: hidden; }
+  aside .topo { padding: 12px 14px 8px; border-bottom: 1px solid var(--borda); }
+  aside .topo h2 { margin: 0 0 8px; font-size: 15px; display: flex; justify-content: space-between; }
+  aside .topo h2 span { color: var(--suave); font-weight: 400; font-size: 13px; }
+  .filtros { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filtros label, .filtros button { font: inherit; font-size: 13px; border: 1px solid var(--borda); border-radius: 6px; padding: 3px 8px; background: #fff; cursor: pointer; user-select: none; }
+  .filtros input { margin: 0 4px 0 0; vertical-align: -1px; }
+  .filtros button.ativo { background: #fef3c7; border-color: #f59e0b; }
+  #capturas { overflow-y: auto; font: 12px/1.35 ui-monospace, Consolas, monospace; flex: 1; min-height: 200px; }
+  .cap { padding: 5px 12px; border-bottom: 1px solid #f0f1f3; cursor: pointer; }
+  .cap:hover { background: #f8fafc; }
+  .cap .l1 { display: flex; gap: 6px; align-items: center; white-space: nowrap; overflow: hidden; }
+  .cap .hora { color: var(--suave); }
+  .cap .proto { font-weight: 700; padding: 0 5px; border-radius: 4px; font-size: 11px; }
+  .cap.http .proto { background: var(--http-fundo); color: var(--http); }
+  .cap.mqtt .proto { background: var(--mqtt-fundo); color: var(--mqtt); }
+  .cap .rota { color: var(--suave); overflow: hidden; text-overflow: ellipsis; }
+  .cap .tam { margin-left: auto; color: var(--suave); }
+  .cap .l2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 2px; }
+  .cap.erro .l2 { color: var(--alerta); font-weight: 600; }
+  .cap.conexao .l2 { color: var(--suave); font-style: italic; }
+  .cap.celular { border-left: 3px solid #f59e0b; }
+  .cap pre { display: none; margin: 6px 0 2px; padding: 8px; background: #0f172a; color: #e2e8f0; border-radius: 6px; white-space: pre-wrap; word-break: break-all; }
+  .cap.aberta pre { display: block; }
+  .sem-http .cap.http, .sem-mqtt .cap.mqtt, .sem-polling .cap.polling { display: none; }
+  .vazio { padding: 16px; color: var(--suave); }
 </style>
 </head>
 <body>
 <header>
-  <h1>Moinho 01 · proteção por sobrecorrente</h1>
+  <h1>Supervisório ·
+    <select id="dispositivo" aria-label="Dispositivo"><option>moinho01</option></select>
+  </h1>
   <small id="conexao">carregando…</small>
+  <small>📱 no celular, abra <a id="url-celular" href="/celular" target="_blank">/celular</a></small>
 </header>
 
+<div class="layout">
 <main>
   <div class="banner" id="banner">
     <strong id="banner-titulo"></strong>
@@ -94,14 +131,34 @@
   </section>
 </main>
 
+<aside class="cartao">
+  <div class="topo">
+    <h2>Tráfego <span id="cap-total">0 capturas</span></h2>
+    <div class="filtros">
+      <label><input type="checkbox" id="f-http" checked>HTTP</label>
+      <label><input type="checkbox" id="f-mqtt" checked>MQTT</label>
+      <label><input type="checkbox" id="f-polling" checked>ocultar polling</label>
+      <button id="b-pausar" type="button">⏸ pausar</button>
+      <button id="b-limpar" type="button">limpar</button>
+    </div>
+  </div>
+  <div id="capturas" class="sem-polling"><div class="vazio" id="cap-vazio">aguardando tráfego…</div></div>
+</aside>
+</div>
+
 <script>
-const DEVICE = "moinho01";
 const LIMITE_A = 100;
 const $ = (id) => document.getElementById(id);
+let DEVICE = new URLSearchParams(location.search).get("device") || "moinho01";
 
 const hora = (iso) => iso ? new Date(iso).toLocaleTimeString("pt-BR") : "—";
+const horaMs = (iso) => {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("pt-BR") + "." + String(d.getMilliseconds()).padStart(3, "0");
+};
 const NOMES = { desarme: "Desarme", emergencia: "Emergência", rearme: "Rearme", online: "Nó online", offline: "Nó offline" };
 const MOTIVOS = { sobrecorrente: "sobrecorrente", falha_sensor: "falha de sensor" };
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 async function buscar(url) {
   const r = await fetch(url, { cache: "no-store" });
@@ -109,6 +166,25 @@ async function buscar(url) {
   return r.json();
 }
 
+// ------------------------------------------------------------ dispositivos
+async function atualizarDispositivos() {
+  try {
+    const lista = await buscar("/api/dispositivos");
+    if (!lista.includes(DEVICE)) lista.unshift(DEVICE);
+    const sel = $("dispositivo");
+    if (sel.options.length !== lista.length || [...sel.options].some((o, i) => o.value !== lista[i])) {
+      sel.innerHTML = lista.map((d) => `<option value="${esc(d)}">${esc(d)}</option>`).join("");
+    }
+    sel.value = DEVICE;
+  } catch { /* backend fora: o banner ja avisa */ }
+}
+$("dispositivo").addEventListener("change", (e) => {
+  DEVICE = e.target.value;
+  history.replaceState(null, "", `?device=${encodeURIComponent(DEVICE)}`);
+  atualizar();
+});
+
+// ------------------------------------------------------------------ estado
 function causaDaFalha(e) {
   if (!e.broker_conectado) return `O supervisório não alcança o broker MQTT (há ${e.broker_desde_s ?? "?"} s).`;
   if (e.dispositivo_online === false) return "O broker informou que o nó saiu da rede (LWT/offline).";
@@ -120,7 +196,6 @@ function mostrarEstado(e) {
   $("conexao").textContent = `broker: ${e.broker_conectado ? "conectado" : "DESCONECTADO"} · nó: ${
     e.dispositivo_online === null ? "?" : e.dispositivo_online ? "online" : "offline"}`;
 
-  // banner e valores em cinza quando o dado e antigo (STALE)
   $("banner").classList.toggle("visivel", e.stale);
   if (e.stale) {
     $("banner-titulo").textContent = u
@@ -203,10 +278,11 @@ function mostrarEventos(lista) {
 
 async function atualizar() {
   try {
+    const d = encodeURIComponent(DEVICE);
     const [estado, hist, evs] = await Promise.all([
-      buscar(`/api/estado?device_id=${DEVICE}`),
-      buscar(`/api/historico?device_id=${DEVICE}&segundos=180`),
-      buscar(`/api/eventos?device_id=${DEVICE}&limite=12`),
+      buscar(`/api/estado?device_id=${d}`),
+      buscar(`/api/historico?device_id=${d}&segundos=180`),
+      buscar(`/api/eventos?device_id=${d}&limite=12`),
     ]);
     mostrarEstado(estado);
     desenharGrafico(hist, estado.agora);
@@ -219,8 +295,76 @@ async function atualizar() {
   }
 }
 
+// ----------------------------------------------------- painel de trafego
+// Mostra o que o backend enviou e recebeu: cada requisicao HTTP (inclusive as do
+// celular) e cada mensagem MQTT. Clique numa linha para ver o conteudo.
+let ultimoId = 0, pausado = false, total = 0;
+const MAX_LINHAS = 400;
+
+function linhaCaptura(c) {
+  const det = c.detalhe || {};
+  const erro = c.proto === "HTTP" && det.status >= 400;
+  const doCelular = /android|iphone|mobile/i.test(det.user_agent || "") || /^celular/.test(c.origem);
+  const classes = ["cap", c.proto.toLowerCase(), c.direcao, c.polling ? "polling" : "", erro ? "erro" : "",
+                   doCelular ? "celular" : "", c.direcao === "conexao" ? "conexao" : ""].join(" ");
+  const seta = c.direcao === "RX" ? "⇠" : c.direcao === "TX" ? "⇢" : c.direcao === "conexao" ? "⇄" : "→";
+  const div = document.createElement("div");
+  div.className = classes;
+  div.innerHTML = `
+    <div class="l1"><span class="hora">${horaMs(c.ts)}</span><span class="proto">${c.proto}</span>
+      <span class="rota">${esc(c.origem)} ${seta} ${esc(c.destino)}</span>
+      <span class="tam">${c.tamanho ? c.tamanho + " B" : ""}</span></div>
+    <div class="l2">${esc(c.resumo)}</div>
+    <pre>${esc(JSON.stringify(det, null, 2))}</pre>`;
+  div.addEventListener("click", () => div.classList.toggle("aberta"));
+  return div;
+}
+
+let buscandoTrafego = false;
+async function atualizarTrafego() {
+  if (pausado || buscandoTrafego) return;     // uma consulta por vez: senao a mesma captura entra duas vezes
+  buscandoTrafego = true;
+  try {
+    const novas = (await buscar(`/api/trafego?depois=${ultimoId}`)).filter((c) => c.id > ultimoId);
+    if (!novas.length) return;
+    const lista = $("capturas");
+    $("cap-vazio")?.remove();
+    for (const c of novas) {
+      lista.prepend(linhaCaptura(c));   // mais nova em cima
+      ultimoId = c.id;
+      total++;
+    }
+    while (lista.children.length > MAX_LINHAS) lista.lastElementChild.remove();
+    $("cap-total").textContent = `${total} capturas`;
+  } catch { /* backend fora */ }
+  finally { buscandoTrafego = false; }
+}
+
+$("f-http").addEventListener("change", (e) => $("capturas").classList.toggle("sem-http", !e.target.checked));
+$("f-mqtt").addEventListener("change", (e) => $("capturas").classList.toggle("sem-mqtt", !e.target.checked));
+$("f-polling").addEventListener("change", (e) => $("capturas").classList.toggle("sem-polling", e.target.checked));
+$("b-pausar").addEventListener("click", (e) => {
+  pausado = !pausado;
+  e.target.textContent = pausado ? "▶ continuar" : "⏸ pausar";
+  e.target.classList.toggle("ativo", pausado);
+});
+$("b-limpar").addEventListener("click", () => {
+  $("capturas").innerHTML = "";
+  total = 0;
+  $("cap-total").textContent = "0 capturas";
+});
+
+buscar("/api/rede").then((r) => {
+  $("url-celular").textContent = r.url_celular;
+  $("url-celular").href = r.url_celular;
+}).catch(() => {});
+
+atualizarDispositivos();
 atualizar();
-setInterval(atualizar, 1000);   // polling de 1 s
+atualizarTrafego();
+setInterval(atualizar, 1000);          // polling de 1 s
+setInterval(atualizarTrafego, 1000);
+setInterval(atualizarDispositivos, 5000);
 </script>
 </body>
 </html>
