@@ -77,6 +77,21 @@ Se o próprio backend cair, o navegador não consegue buscar dados e mostra
 5. Duplicados — um PUBACK perdido no meio do flush, por exemplo — são descartados pela
    chave `(device_id, seq)` e contados em "duplicadas descartadas".
 
+## 3b. E quando o nó é o celular?
+
+O celular (página `/celular`, ver [DECISOES.md](DECISOES.md) D5b) segue as mesmas regras:
+
+| Situação | O que acontece |
+|---|---|
+| Wi-Fi do celular cai, ou botão "📵 Simular queda" | proteção continua no celular ("decidido no celular, SEM REDE"); leituras vão para o buffer (300); cabeçalho mostra "sem comunicação" |
+| Broker do PC fora, celular com rede | backend responde `503`; o celular mantém a leitura no buffer e tenta de novo a cada 1 s |
+| Comunicação volta | o buffer é reenviado em ordem, com `seq`/`ts_origem` originais; o celular mostra "flush do buffer" e "PC confirmou ... lacunas 0" |
+| No PC | o mesmo banner e os mesmos valores em cinza das seções 2 e 4 |
+
+Diferença: a página do celular **perde o buffer se for recarregada**, porque ele fica na
+memória do navegador, e não em disco como no ESP32. O que estava lá vira lacuna de `seq`,
+e o dashboard mostra isso.
+
 ## 4. Como o sistema identifica um dado desatualizado
 
 - **Regra:** um dado é STALE quando `agora − ts_origem > 5 s`. A leitura chega a cada

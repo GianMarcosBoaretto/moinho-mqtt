@@ -55,6 +55,39 @@ Durante uma falha, o banco fica **para trás** do que aconteceu no moinho. Isso 
 Consistência forte exigiria que o nó esperasse a confirmação do banco antes de seguir.
 Isso colocaria a rede no caminho da proteção, que é exatamente o que D1 proíbe.
 
+## D3b. Replicação: onde o dado existe e como as cópias convergem
+
+Não há banco replicado nem servidor redundante: é um protótipo. Mesmo assim, o mesmo dado
+existe em mais de um lugar, e o projeto define quem é a fonte e como as cópias se acertam.
+
+| Cópia | Onde | O que guarda | Papel |
+|---|---|---|---|
+| **Buffer do nó** | RAM do ESP32 / simulador / celular | últimas 300 leituras ainda não confirmadas | **réplica primária** de tudo que ainda não chegou ao banco: enquanto o broker está fora, o dado só existe aqui |
+| **Fila da sessão persistente** | broker (Mosquitto, com persistência em disco) | mensagens QoS 1 para um assinante desconectado | segura os dados quando o **backend** cai e o broker continua de pé |
+| **Status retained** | broker | o último status de cada nó | réplica do **estado atual**: quem conecta depois recebe na hora, sem esperar a próxima publicação |
+| **Banco SQLite** | backend | todo o histórico | **réplica de leitura** para telas e análise; é para onde todas as outras convergem |
+
+**Modelo:** replicação **assíncrona, primário → réplica**, com o nó de medição como
+primário. O nó nunca espera o banco confirmar para seguir. Ele só tira a leitura do buffer
+quando ela foi entregue ao MQTT: no ESP32, depois do PUBACK do broker; no simulador, a
+biblioteca paho guarda as mensagens ainda sem PUBACK e as retransmite ao reconectar.
+
+**Como as cópias convergem:**
+1. Toda leitura tem identidade única e imutável, `(device_id, seq)`, criada na origem.
+2. A réplica (banco) aplica as escritas de forma **idempotente** (`INSERT OR IGNORE` com
+   `UNIQUE(device_id, seq)`). Receber a mesma leitura duas vezes, por reenvio QoS 1 ou
+   flush do buffer, dá o mesmo resultado que receber uma vez.
+3. A **ordem de aplicação não importa**: a ordem lógica vem de `ts_origem`, não da ordem
+   de chegada (D4). Duas réplicas que recebem as mesmas leituras em ordem diferente ficam
+   iguais.
+4. Lacunas de `seq` mostram quando uma réplica está **incompleta**. Se a lacuna se fecha
+   sozinha, era atraso. Se não fecha, houve perda real (buffer estourou), e ela fica
+   visível no dashboard.
+
+Esses três pontos (identidade única, aplicação idempotente e ordem independente da
+chegada) são o que garante a **consistência eventual** da D3: sem novas leituras, todas as
+cópias chegam ao mesmo conteúdo.
+
 ## D4. Ordenação por `ts_origem`, não por chegada
 
 Explicado em [SINCRONIZACAO.md](SINCRONIZACAO.md). Resumo: a ordem de chegada é um
@@ -72,6 +105,36 @@ interessa ao processo é quando a corrente foi medida.
 | Buffer de 300 amostras | 5 min a 1 Hz cobre a maioria das quedas de Wi-Fi/broker; ~10 KB de RAM no ESP32 |
 | STALE em 5 s | 5 leituras perdidas seguidas; folga para oscilação sem alarme falso |
 | `seq` com bloco de boot | reinício do nó não colide com a chave de deduplicação |
+
+## D5b. Celular como nó: ponte HTTP → MQTT
+
+A página `/celular` transforma um celular no nó `moinho01`, para demonstrar o fluxo sem
+hardware e com algo físico na mão. O navegador do celular não abre conexão TCP crua, então
+não fala MQTT direto. A escolha foi uma **ponte no backend**:
+
+```
+celular ──HTTP POST /api/gateway/corrente──▶ backend ──MQTT QoS 1──▶ broker ──▶ assinante ──▶ SQLite
+```
+
+**Por quê a ponte, e não MQTT sobre WebSocket direto do celular:**
+- não muda o broker nem acrescenta biblioteca externa à página, que fica em HTML/JS puro;
+- dali em diante o dado segue **o mesmo caminho** do ESP32: mesmo tópico, mesmo payload,
+  mesmo assinante e mesma deduplicação. O backend não tem um "caminho especial do celular";
+- o HTTP dá **resposta síncrona**, que o celular mostra como confirmação de recebimento
+  (`← 200 · 4 ms`) — bom para demonstrar envio e recebimento.
+
+**O que se perde, e como foi compensado:**
+- sem LWT: o broker não sabe quando o celular some. O STALE por idade do dado
+  (`agora − ts_origem > 5 s`) cobre esse caso, como já cobre o broker fora;
+- o QoS 1 vale do backend em diante. Entre o celular e o backend, a garantia é a do HTTP:
+  o celular só tira a leitura do buffer com resposta `200`. Se receber `503` (broker fora)
+  ou nenhuma resposta, mantém no buffer e reenvia;
+- a proteção do celular é a mesma lógica local (D1), rodando no navegador, e continua
+  atuando com o Wi-Fi desligado.
+
+Para demonstrar MQTT ponta a ponta continuam valendo o simulador e o ESP32, que publicam
+direto no broker. O caminho natural para tirar a ponte depois seria MQTT sobre WebSocket
+(listener `websockets` no Mosquitto + `mqtt.js` na página).
 
 ## D6. Fora do escopo desta entrega
 
