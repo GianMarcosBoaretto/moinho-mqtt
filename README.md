@@ -162,3 +162,4 @@ Detalhes e justificativas em [docs/DECISOES.md](docs/DECISOES.md).
 | [docs/DECISOES.md](docs/DECISOES.md) | por que MQTT, por que proteção local, por que consistência eventual |
 | [docs/arquitetura.md](docs/arquitetura.md) | diagrama Mermaid do fluxo e da sequência de falha |
 | [EVIDENCIAS.md](EVIDENCIAS.md) | roteiro de teste, logs esperados e prints |
+| [Entrega-PI-Comunicacao-e-Consistencia.pdf](docs/Entrega-PI-Comunicacao-e-Consistencia.pdf) | **tudo da entrega num PDF só**: resumo, arquitetura, nomeação, sincronização, falha, decisões e evidências com prints |
