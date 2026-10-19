@@ -162,4 +162,4 @@ Detalhes e justificativas em [docs/DECISOES.md](docs/DECISOES.md).
 | [docs/DECISOES.md](docs/DECISOES.md) | por que MQTT, por que proteção local, por que consistência eventual |
 | [docs/arquitetura.md](docs/arquitetura.md) | diagrama Mermaid do fluxo e da sequência de falha |
 | [EVIDENCIAS.md](EVIDENCIAS.md) | roteiro de teste, logs esperados e prints |
-| [Entrega-PI-Comunicacao-e-Consistencia.pdf](docs/Entrega-PI-Comunicacao-e-Consistencia.pdf) | **tudo da entrega num PDF só**: resumo, arquitetura, nomeação, sincronização, falha, decisões e evidências com prints |
+| [Atividade Integradora Automacao Industrial v4.pdf](docs/Atividade%20Integradora%20Automacao%20Industrial%20v4.pdf) | documento do projeto atualizado com esta entrega (páginas 4 a 9) |
