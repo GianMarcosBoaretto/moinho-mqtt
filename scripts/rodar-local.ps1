@@ -5,6 +5,7 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\rodar-local.ps1
 #   powershell -ExecutionPolicy Bypass -File scripts\rodar-local.ps1 -SoBroker    # religa so o broker
 #   powershell -ExecutionPolicy Bypass -File scripts\rodar-local.ps1 -SemSimulador # o celular faz o moinho01
+#   powershell -ExecutionPolicy Bypass -File scripts\rodar-local.ps1 -SoSimulador  # religa so o simulador
 #
 # Para simular a queda de comunicacao: feche a janela "BROKER MQTT" (ou "SIMULADOR").
 #
@@ -12,6 +13,7 @@
 # senhas aleatorias. Cada janela recebe so a senha dela, por variavel de ambiente.
 param(
     [switch]$SoBroker,
+    [switch]$SoSimulador,
     [switch]$SemSimulador,
     [switch]$SemNavegador
 )
@@ -37,6 +39,13 @@ Get-Content (Join-Path $raiz '.env') | Where-Object { $_ -match '^\s*([A-Z_]+)\s
 function Abrir-Janela([string]$titulo, [string]$pasta, [string]$comando) {
     $script = "`$host.UI.RawUI.WindowTitle = '$titulo'; Set-Location '$pasta'; $comando"
     Start-Process powershell -ArgumentList '-NoExit', '-Command', $script
+}
+
+if ($SoSimulador) {
+    $env:MQTT_USER = 'no-moinho01'; $env:MQTT_PASS = $segredos['MQTT_SENHA_NO']
+    Abrir-Janela 'SIMULADOR' "$raiz\simulador" "& '$py' simulador.py"
+    $env:MQTT_USER = $null; $env:MQTT_PASS = $null
+    Write-Host 'Simulador religado.'; exit
 }
 
 Abrir-Janela 'BROKER MQTT' $raiz "& '$amqtt' -c '$raiz\mosquitto\amqtt-local.yaml'"

@@ -345,3 +345,45 @@ inteiro do dado, visível. Bom para print.
 > passou **pelo backend**. Mensagens que o broker trocou só com outros clientes, e os
 > pacotes de controle do MQTT (PUBACK, PINGREQ), não aparecem. Para ver os pacotes
 > crus, use o Wireshark com o filtro `tcp.port == 1883 || tcp.port == 8085`.
+
+## 12. Testes de tolerância a falhas e segurança
+
+Detalhes e justificativas em [docs/TOLERANCIA_E_SEGURANCA.md](docs/TOLERANCIA_E_SEGURANCA.md).
+Suba o sistema com `scripts\rodar-local.ps1` e deixe o dashboard aberto.
+
+### Automático (tudo de uma vez)
+
+Com o `rodar-local` fechado:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\teste_falha_local.ps1
+```
+
+Faz as falhas de comunicação e de origem e os testes de segurança, e confere 25 itens em
+cerca de 1 min 30 s. No final: `RESULTADO: todas as verificacoes passaram`.
+
+### T8 — Falha da origem (o simulador para)
+
+| Faça | Resultado esperado |
+|---|---|
+| Feche a janela `SIMULADOR` | em 5 s: aviso "Comunicação perdida há X s — último dado recebido às HH:MM:SS", valor em cinza ("VALOR ANTIGO"), nó **offline** |
+| Religue: `powershell -ExecutionPolicy Bypass -File scripts\rodar-local.ps1 -SoSimulador` | o aviso some sozinho; nos eventos aparecem "⚠ Dados pararam" e "✔ Dados voltaram (X s sem dados)" |
+
+(A falha de **comunicação** é o T4/T5: feche `BROKER MQTT` e religue com `-SoBroker`.)
+
+### T9 — Log de quando os dados pararam e voltaram
+
+```powershell
+Select-String -Path logs\supervisorio.log -Pattern 'SEM DADOS|DADOS VOLTARAM'
+```
+
+Deve mostrar uma linha `[SEM DADOS]` e uma `[DADOS VOLTARAM]` (com a duração) para cada falha.
+
+### T10 — Segurança
+
+| Teste | Comando | Resultado esperado |
+|---|---|---|
+| Broker sem senha | `.\.venv\Scripts\python scripts\espiar.py --sem-senha` | `RECUSADO pelo broker: Not authorized` |
+| Broker com senha | `.\.venv\Scripts\python scripts\espiar.py` | conecta e mostra as mensagens (usa a senha do `.env`) |
+| API sem chave | `curl.exe -i -X POST http://localhost:8085/api/gateway/corrente -d '{}'` | `HTTP/1.1 401 Unauthorized`; no painel de tráfego, linha vermelha; no log, `[SEGURANCA] ... RECUSADO` |
+| Senhas fora do Git | `git ls-files .env mosquitto/senhas-amqtt.txt firmware/moinho01/secrets.h` | não imprime nada |
