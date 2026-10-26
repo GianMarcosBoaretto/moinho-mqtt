@@ -106,6 +106,29 @@
 //      buffer circular e envia ao PC por HTTP. O PC publica no MQTT e grava no banco.
 const params = new URLSearchParams(location.search);
 const DEVICE = params.get("device") || "moinho01";
+
+// Chave de acesso da API (GATEWAY_TOKEN do .env do PC). Sem ela o PC recusa os envios (401).
+// Pode vir uma vez pela URL (?chave=...), e fica guardada so neste navegador.
+let chave = "";
+try { chave = localStorage.getItem("chave_gateway") || ""; } catch {}
+if (params.get("chave")) {
+  chave = params.get("chave");
+  try { localStorage.setItem("chave_gateway", chave); } catch {}
+  history.replaceState(null, "", location.pathname);   // tira a chave da barra de endereco
+}
+let pediuChave = false;
+function pedirChave() {
+  if (pediuChave) return;
+  pediuChave = true;
+  const nova = prompt("O PC recusou o envio: falta a chave de acesso.
+Digite o GATEWAY_TOKEN (arquivo .env do PC):");
+  if (nova) {
+    chave = nova.trim();
+    try { localStorage.setItem("chave_gateway", chave); } catch {}
+    proximaTentativa = 0;
+  }
+  setTimeout(() => { pediuChave = false; }, 5000);
+}
 const LIMITE_A = 100, CONFIRMACAO = 3, PERIODO_PROTECAO = 100, PERIODO_TELEMETRIA = 1000, TAM_BUFFER = 300;
 const $ = (id) => document.getElementById(id);
 $("nome").textContent = DEVICE;
@@ -174,7 +197,7 @@ async function postar(item) {
   const timer = setTimeout(() => ctrl.abort(), 2500);
   try {
     return await fetch(`/api/gateway/${item.tipo}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${chave}` },
       body: JSON.stringify(item.payload), signal: ctrl.signal,
     });
   } finally { clearTimeout(timer); }
@@ -204,6 +227,7 @@ async function esvaziarBuffer() {
       } else {
         online = false; proximaTentativa = Date.now() + 1000;
         registrar("falha", `→ POST ${item.tipo} seq …${seqCurto}  ← ${r.status} ${corpo.erro ?? ""} · buffer ${buffer.length}`);
+        if (r.status === 401) pedirChave();   // a leitura continua no buffer ate a chave certa
         break;
       }
     } catch {

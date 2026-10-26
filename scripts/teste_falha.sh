@@ -14,6 +14,10 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+# senhas do broker (o .env fica fora do Git; crie com: python scripts/preparar_segredos.py)
+[ -f .env ] || { echo "falta o .env: rode python scripts/preparar_segredos.py"; exit 1; }
+set -a; . ./.env; set +a
+
 API="http://localhost:8085"
 DEVICE="moinho01"
 SAIDA="logs/$(date +%Y%m%d-%H%M%S)"
@@ -112,8 +116,8 @@ passo "5/6 idempotencia: reenviando de proposito uma leitura ja gravada"
 DUP_ANTES=$(api_py 'e["contadores"]["duplicadas_descartadas"]')
 PAYLOAD=$(api_py 'json.dumps({"schema": 1, "device_id": "moinho01", **{k: h[-5][k] for k in ("seq", "ts_origem", "corrente_a", "estado", "motivo")}})')
 echo "  payload repetido: $PAYLOAD"
-docker exec moinho-broker mosquitto_pub -q 1 -t "fabrica/planta1/$DEVICE/corrente" -m "$PAYLOAD"
-docker exec moinho-broker mosquitto_pub -q 1 -t "fabrica/planta1/$DEVICE/corrente" -m "$PAYLOAD"
+docker exec moinho-broker mosquitto_pub -u supervisorio -P "$MQTT_SENHA_SUPERVISORIO" -q 1 -t "fabrica/planta1/$DEVICE/corrente" -m "$PAYLOAD"
+docker exec moinho-broker mosquitto_pub -u supervisorio -P "$MQTT_SENHA_SUPERVISORIO" -q 1 -t "fabrica/planta1/$DEVICE/corrente" -m "$PAYLOAD"
 sleep 2
 DUP_DEPOIS=$(api_py 'e["contadores"]["duplicadas_descartadas"]')
 [ "$DUP_DEPOIS" -ge $((DUP_ANTES + 2)) ] && ok "2 duplicados descartados pela chave (device_id, seq)" || falhou "duplicados nao foram descartados"

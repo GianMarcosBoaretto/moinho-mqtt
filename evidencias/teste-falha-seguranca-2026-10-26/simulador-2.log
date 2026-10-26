@@ -1,0 +1,4 @@
+15:21:08 [SIM] moinho01 boot=2 limite=100 A buffer=300
+15:21:08 [MQTT] conectando em 127.0.0.1:1883 como client_id=sim-moinho01
+15:21:08 [PROTECAO] sem broker ha 0s - protecao local ATIVA: estado=operando corrente=72.7 A | buffer 1/300 descartadas=0
+15:21:08 [MQTT] conectado ao broker (ficou fora 0.1s); buffer com 1 mensagens para reenviar

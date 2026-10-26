@@ -1,0 +1,9 @@
+# Permissoes por usuario no Mosquitto (o que nao esta aqui e negado).
+
+# no de medicao: so escreve nos topicos do proprio moinho
+user no-moinho01
+topic write fabrica/planta1/moinho01/#
+
+# supervisorio: le tudo e publica pela ponte do celular
+user supervisorio
+topic readwrite fabrica/#

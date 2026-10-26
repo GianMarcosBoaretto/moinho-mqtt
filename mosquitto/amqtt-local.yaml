@@ -1,9 +1,22 @@
 # Broker MQTT em Python (amqtt) para rodar SEM Docker, so na maquina local.
 # Nao tem persistencia: se fechar, perde retained e sessoes (o Mosquitto do compose guarda).
+#
+# Seguranca (mesmas regras do Mosquitto do docker-compose):
+#  - sem conexao anonima: usuario e senha obrigatorios (hashes em senhas-amqtt.txt,
+#    gerado por scripts/preparar_segredos.py a partir do .env; fora do Git)
+#  - cada usuario so publica/assina os topicos dele (ACL)
 listeners:
   default:
     type: tcp
     bind: 0.0.0.0:1883
 plugins:
-  amqtt.plugins.authentication.AnonymousAuthPlugin:
-    allow_anonymous: true
+  amqtt.plugins.authentication.FileAuthPlugin:
+    password_file: mosquitto/senhas-amqtt.txt
+  amqtt.plugins.topic_checking.TopicAccessControlListPlugin:
+    # quem pode ASSINAR
+    acl:
+      supervisorio: ["fabrica/#"]
+    # quem pode PUBLICAR: o no so escreve nos topicos do proprio moinho
+    publish_acl:
+      no-moinho01: ["fabrica/planta1/moinho01/#"]
+      supervisorio: ["fabrica/#"]

@@ -1,6 +1,9 @@
 # Fatia funcional: simulador -> MQTT (Mosquitto) -> backend (FastAPI + SQLite) -> dashboard
-# Subir:   docker compose up --build
+# Antes da primeira vez:  python scripts/preparar_segredos.py   (cria o .env com as senhas)
+# Subir:     docker compose up --build
 # Dashboard: http://localhost:8085
+#
+# As senhas vem do arquivo .env (fora do Git); o compose le o .env sozinho.
 
 services:
   broker:
@@ -8,8 +11,18 @@ services:
     container_name: moinho-broker
     ports:
       - "1883:1883"
+    environment:
+      MQTT_SENHA_NO: ${MQTT_SENHA_NO:?crie o .env (scripts/preparar_segredos.py)}
+      MQTT_SENHA_SUPERVISORIO: ${MQTT_SENHA_SUPERVISORIO:?crie o .env (scripts/preparar_segredos.py)}
+    # gera o arquivo de senhas (so hashes) a partir do .env e sobe o broker
+    command: >
+      sh -c "mosquitto_passwd -c -b /mosquitto/data/senhas no-moinho01 \"$$MQTT_SENHA_NO\" &&
+             mosquitto_passwd -b /mosquitto/data/senhas supervisorio \"$$MQTT_SENHA_SUPERVISORIO\" &&
+             chown mosquitto:mosquitto /mosquitto/data/senhas && chmod 0700 /mosquitto/data/senhas &&
+             exec mosquitto -c /mosquitto/config/mosquitto.conf"
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/acl:/mosquitto/config/acl:ro
       - broker-dados:/mosquitto/data   # guarda sessoes persistentes e retained entre reinicios
 
   backend:
@@ -18,7 +31,11 @@ services:
     environment:
       MQTT_HOST: broker
       MQTT_PORT: "1883"
+      MQTT_USER: supervisorio
+      MQTT_PASS: ${MQTT_SENHA_SUPERVISORIO}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
       DB_PATH: /dados/moinho.db
+      LOG_PATH: /dados/supervisorio.log
       STALE_S: "5"
     ports:
       - "8085:8085"
@@ -34,6 +51,8 @@ services:
     environment:
       MQTT_HOST: broker
       MQTT_PORT: "1883"
+      MQTT_USER: no-moinho01
+      MQTT_PASS: ${MQTT_SENHA_NO}
       DEVICE_ID: moinho01
     volumes:
       - sim-estado:/app/estado   # contador de boot (seq) e arquivo de comando

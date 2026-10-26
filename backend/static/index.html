@@ -142,7 +142,7 @@
   <section class="cartao">
     <div class="rotulo">Eventos</div>
     <table>
-      <thead><tr><th>Quando (origem)</th><th>Evento</th><th>Motivo</th><th class="num">Corrente</th><th class="num">seq</th></tr></thead>
+      <thead><tr><th>Quando (origem)</th><th>Evento</th><th>Motivo / detalhe</th><th class="num">Corrente</th><th class="num">seq</th></tr></thead>
       <tbody id="eventos"></tbody>
     </table>
   </section>
@@ -175,7 +175,8 @@ const horaMs = (iso) => {
   const d = new Date(iso);
   return d.toLocaleTimeString("pt-BR") + "." + String(d.getMilliseconds()).padStart(3, "0");
 };
-const NOMES = { desarme: "Desarme", emergencia: "Emergência", rearme: "Rearme", online: "Nó online", offline: "Nó offline" };
+const NOMES = { desarme: "Desarme", emergencia: "Emergência", rearme: "Rearme", online: "Nó online", offline: "Nó offline",
+                sem_dados: "⚠ Dados pararam", dados_voltaram: "✔ Dados voltaram" };
 const MOTIVOS = { sobrecorrente: "sobrecorrente", falha_sensor: "falha de sensor" };
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -337,7 +338,7 @@ function desenharGrafico(pontos, agora) {
 function mostrarEventos(lista) {
   $("eventos").innerHTML = lista.map((ev) => `<tr>
       <td>${hora(ev.ts_origem ?? ev.ts_recebimento)}</td><td>${NOMES[ev.tipo] ?? ev.tipo}</td>
-      <td>${ev.motivo ? MOTIVOS[ev.motivo] : ""}</td><td class="num">${ev.corrente_a ?? ""}</td>
+      <td>${ev.motivo ? MOTIVOS[ev.motivo] : esc(ev.detalhe ?? "")}</td><td class="num">${ev.corrente_a ?? ""}</td>
       <td class="num">${ev.seq ?? ""}</td></tr>`).join("") || `<tr><td colspan="5">sem eventos</td></tr>`;
 }
 

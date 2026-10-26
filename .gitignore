@@ -7,3 +7,8 @@ __pycache__/
 simulador/estado/
 logs/
 .vscode/
+
+# segredos: nunca versionar (modelos: .env.exemplo e firmware/moinho01/secrets.exemplo.h)
+.env
+mosquitto/senhas-amqtt.txt
+firmware/**/secrets.h

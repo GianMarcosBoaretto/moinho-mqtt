@@ -1,0 +1,65 @@
+﻿
+== 1/8 subindo broker (com senha), backend e simulador
+  coletando 12 s de dados normais...
+  estado salvo em 01_normal.json
+  [OK]    dado atual (nao STALE)
+  [OK]    backend gravou 12 leituras
+
+== 2/8 derrubando o broker (falha de COMUNICACAO)
+  broker parado as 15:20:13
+
+== 3/8 sobrecorrente SEM REDE: a protecao local tem que desarmar
+  [OK]    simulador desarmou localmente com o broker fora
+  sim| 15:20:19 [PROTECAO] estado=desarmado motivo=sobrecorrente corrente=128.8 A rele=ABERTO (decidido localmente, SEM REDE)
+  estado salvo em 02_degradado.json
+  [OK]    backend marcou o dado como STALE (idade 12.6 s)
+  [OK]    backend sabe que perdeu o broker
+  [OK]    supervisorio ainda NAO sabe do desarme (o dado nao chegou) - por isso o banner
+  aguardando mais 15 s com o broker fora (enche o buffer do simulador)...
+  sim| 15:20:34 [PROTECAO] sem broker ha 20s - protecao local ATIVA: estado=desarmado corrente=0.2 A | buffer 21/300 descartadas=0
+  sim| 15:20:39 [PROTECAO] sem broker ha 25s - protecao local ATIVA: estado=desarmado corrente=0.1 A | buffer 26/300 descartadas=0
+
+== 4/8 religando o broker: volta sozinho, sem reiniciar nada
+  broker de volta as 15:20:44; aguardando o flush do buffer...
+  estado salvo em 03_reconstruido.json
+  [OK]    dado atual de novo
+  [OK]    o desarme feito durante a falha chegou
+  [OK]    nenhuma lacuna de seq: historico completo
+  [OK]    28 leituras chegaram do buffer com ts_origem/seq originais
+  [OK]    desarme registrado com o horario em que aconteceu: 2026-10-26T18:20:19.263Z
+  [OK]    historico ordenado por ts_origem
+  sim| 15:20:46 [MQTT] conectado ao broker (ficou fora 32.3s); buffer com 33 mensagens para reenviar
+  sim| 15:20:46 [BUFFER] flush: 33 mensagens reenviadas com ts_origem/seq originais (restam 0)
+
+== 5/8 idempotencia: reenviando de proposito uma leitura ja gravada
+  payload repetido: {"corrente_a":0.2,"motivo":"sobrecorrente","schema":1,"device_id":"moinho01","ts_origem":"2026-10-26T18:20:47.489Z","seq":1000000048,"estado":"desarmado"}
+  [OK]    2 duplicados descartados pela chave (device_id, seq) (0 -> 2)
+  [OK]    rearmado: OPERANDO de novo
+
+== 6/8 parando a ORIGEM (simulador) e religando
+  simulador parado as 15:20:57
+  estado salvo em 04_origem_parada.json
+  [OK]    sem a origem, o dado ficou desatualizado (idade 10.3 s); o ultimo valor continua na tela
+  [OK]    o broker avisou que o no saiu (LWT): dispositivo offline
+  simulador religado as 15:21:07
+  [OK]    origem de volta: dado atual de novo, sem reiniciar o supervisorio
+  [OK]    dispositivo online de novo
+
+== 7/8 seguranca
+  [OK]    broker RECUSA conexao sem usuario e senha
+  [OK]    ACL: o no-moinho01 nao consegue publicar como outro moinho (moinho99 nao apareceu)
+  [OK]    API do celular sem chave: HTTP 401 (recusado)
+  [OK]    API do celular com chave errada: HTTP 401 (recusado)
+  [OK]    API do celular com a chave certa: HTTP 200
+  [OK]    nenhum arquivo de senha esta versionado no Git (.env, senhas, secrets.h)
+
+== 8/8 log de quando os dados pararam e voltaram
+  [OK]    log registrou 2 vezes que os dados PARARAM (broker e origem)
+  [OK]    log registrou 2 vezes que os dados VOLTARAM
+  log| 2026-10-26 15:20:19 [SEM DADOS] moinho01: dados pararam de chegar; ultimo dado medido em 2026-10-26T18:20:13.518Z (ha 5.7s) - dashboard em modo degradado
+  log| 2026-10-26 15:20:47 [DADOS VOLTARAM] moinho01: dado atual de novo (34 s sem dados); lacunas restantes: 0
+  log| 2026-10-26 15:21:02 [SEM DADOS] moinho01: dados pararam de chegar; ultimo dado medido em 2026-10-26T18:20:57.348Z (ha 5.0s) - dashboard em modo degradado
+  log| 2026-10-26 15:21:08 [DADOS VOLTARAM] moinho01: dado atual de novo (11 s sem dados); lacunas restantes: 0
+  [OK]    eventos "Dados pararam" e "Dados voltaram" gravados no banco (aparecem no dashboard)
+
+RESULTADO: todas as verificacoes passaram

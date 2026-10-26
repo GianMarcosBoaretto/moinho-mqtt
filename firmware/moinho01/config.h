@@ -1,9 +1,10 @@
 // Configuracao do no de medicao moinho01. Ajuste a rede antes de gravar.
-// NAO commite a senha real do Wi-Fi.
+// As SENHAS nao ficam aqui: ficam em secrets.h, que esta no .gitignore.
+// Copie secrets.exemplo.h para secrets.h e preencha.
 #pragma once
+#include "secrets.h"   // WIFI_SENHA e MQTT_SENHA
 
 #define WIFI_SSID   "SUA_REDE"
-#define WIFI_SENHA  "SUA_SENHA"
 
 #define MQTT_HOST   "192.168.0.10"   // IP da maquina que roda o docker compose
 #define MQTT_PORTA  1883
@@ -11,6 +12,7 @@
 #define PLANTA      "planta1"
 #define DEVICE_ID   "moinho01"
 #define CLIENT_ID   "esp32-moinho01"  // unico e estavel; o simulador usa sim-moinho01
+#define MQTT_USUARIO "no-moinho01"    // usuario no broker (a senha esta em secrets.h)
 
 #define NTP_1       "a.st1.ntp.br"
 #define NTP_2       "pool.ntp.org"

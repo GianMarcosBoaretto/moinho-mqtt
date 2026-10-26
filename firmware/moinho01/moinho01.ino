@@ -251,7 +251,7 @@ void manterConexao() {
   ultimaTentativa = millis();
   if (WiFi.status() != WL_CONNECTED) return;    // o proprio WiFi reconecta (setAutoReconnect)
 
-  if (mqtt.connect(CLIENT_ID)) {
+  if (mqtt.connect(CLIENT_ID, MQTT_USUARIO, MQTT_SENHA)) {   // o broker recusa conexao anonima
     Serial.printf("[MQTT] conectado ao broker (ficou fora %lus); buffer com %d amostras para reenviar\n",
                   (millis() - foraDesde) / 1000, bufQtd);
     estavaConectado = true;

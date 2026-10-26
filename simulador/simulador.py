@@ -35,6 +35,9 @@ PLANTA = os.getenv("PLANTA", "planta1")
 CLIENT_ID = os.getenv("CLIENT_ID", f"sim-{DEVICE_ID}")  # o ESP32 real usa esp32-moinho01
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
+# usuario e senha do no no broker: vem do ambiente (.env), nunca do codigo. Ver docs/SEGURANCA.md
+MQTT_USER = os.getenv("MQTT_USER", "no-moinho01")
+MQTT_PASS = os.getenv("MQTT_PASS", "")
 
 PREFIXO = f"fabrica/{PLANTA}/{DEVICE_ID}"
 TOPICO_CORRENTE = f"{PREFIXO}/corrente"
@@ -177,6 +180,7 @@ class Telemetria:
         # LWT: se o no sumir sem se despedir, o broker publica "offline" (retained)
         self.cli.will_set(TOPICO_STATUS, json.dumps({"schema": SCHEMA, "device_id": DEVICE_ID, "online": False}),
                           qos=1, retain=True)
+        self.cli.username_pw_set(MQTT_USER, MQTT_PASS)   # o broker recusa conexao anonima
         self.cli.reconnect_delay_set(min_delay=1, max_delay=5)
         self.cli.on_connect = self._on_connect
         self.cli.on_disconnect = self._on_disconnect
@@ -188,7 +192,7 @@ class Telemetria:
 
     def _on_connect(self, cli, userdata, flags, reason_code, properties):
         if reason_code.is_failure:
-            log.info(f"[MQTT] conexao recusada: {reason_code}")
+            log.info(f"[MQTT] conexao RECUSADA pelo broker: {reason_code} (confira usuario/senha no .env)")
             return
         fora = f" (ficou fora {time.monotonic() - self.desde_desconexao:.1f}s)" if self.desde_desconexao else ""
         log.info(f"[MQTT] conectado ao broker{fora}; buffer com {len(self.buffer)} mensagens para reenviar")

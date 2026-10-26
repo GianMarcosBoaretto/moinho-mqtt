@@ -10,6 +10,7 @@ Regras de consistencia:
 Nenhuma decisao de seguranca depende deste servico. Ele so monitora.
 """
 
+import hmac
 import json
 import logging
 import os
@@ -33,6 +34,11 @@ MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 CLIENT_ID = os.getenv("CLIENT_ID", "supervisorio-planta1")
 DB_PATH = os.getenv("DB_PATH", str(Path(__file__).parent / "moinho.db"))
 STALE_S = float(os.getenv("STALE_S", "5"))
+# Credenciais vem do ambiente (.env), nunca do codigo. Ver docs/SEGURANCA.md
+MQTT_USER = os.getenv("MQTT_USER", "supervisorio")
+MQTT_PASS = os.getenv("MQTT_PASS", "")
+GATEWAY_TOKEN = os.getenv("GATEWAY_TOKEN", "")
+LOG_PATH = os.getenv("LOG_PATH", str(Path(__file__).resolve().parent.parent / "logs" / "supervisorio.log"))
 SCHEMA_ACEITO = 1
 ESTADOS = {"operando", "desarmado", "emergencia"}
 MOTIVOS = {None, "sobrecorrente", "falha_sensor"}
@@ -40,7 +46,9 @@ BLOCO_BOOT = 1_000_000_000   # seq = boot * BLOCO_BOOT + contador (ver docs/NOME
 PLANTA_GATEWAY = os.getenv("PLANTA_GATEWAY", "planta1")
 DEVICE_ID_VALIDO = re.compile(r"^[a-z0-9_-]{1,32}$")   # entra no topico: nada de "/", "#" ou "+"
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S", stream=sys.stdout)
+Path(LOG_PATH).parent.mkdir(parents=True, exist_ok=True)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S",
+                    handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler(LOG_PATH, encoding="utf-8")])
 log = logging.getLogger("backend")
 
 # ------------------------------------------------------------------- banco
@@ -69,6 +77,7 @@ CREATE TABLE IF NOT EXISTS eventos (
     estado         TEXT,
     motivo         TEXT,
     corrente_a     REAL,
+    detalhe        TEXT,               -- eventos de comunicacao: quanto tempo ficou sem dados
     UNIQUE (device_id, seq)
 );
 
@@ -97,6 +106,9 @@ def criar_banco():
     with conectar_db() as con:
         con.execute("PRAGMA journal_mode=WAL")   # leitura do dashboard nao trava a gravacao do MQTT
         con.executescript(DDL)
+        colunas = [c[1] for c in con.execute("PRAGMA table_info(eventos)")]
+        if "detalhe" not in colunas:       # banco criado antes desta versao
+            con.execute("ALTER TABLE eventos ADD COLUMN detalhe TEXT")
 
 
 def iso(dt):
@@ -276,7 +288,9 @@ def on_message(cli, userdata, msg):
 
 def on_connect(cli, userdata, flags, reason_code, properties):
     if reason_code.is_failure:
-        log.info(f"[MQTT] conexao recusada: {reason_code}")
+        log.info(f"[MQTT] conexao RECUSADA pelo broker: {reason_code} (usuario/senha?)")
+        trafego.registrar("MQTT", "conexao", CLIENT_ID, f"broker {MQTT_HOST}:{MQTT_PORT}",
+                          f"CONNECT recusado: {reason_code}")
         return
     cont.broker_conectado = True
     cont.broker_desde = time.time()
@@ -299,6 +313,7 @@ def on_disconnect(cli, userdata, flags, reason_code, properties):
 def criar_cliente_mqtt():
     cli = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
                       client_id=CLIENT_ID, clean_session=False)
+    cli.username_pw_set(MQTT_USER, MQTT_PASS)     # o broker recusa conexao anonima
     cli.on_connect = on_connect
     cli.on_disconnect = on_disconnect
     cli.on_message = on_message
@@ -330,13 +345,23 @@ def idade_s(linha, agora):
 
 
 class VigiaStale(threading.Thread):
-    """So para LOG/evidencia: avisa quando o dado de cada dispositivo fica STALE e quando volta."""
+    """Registra quando os dados de cada dispositivo PARAM de chegar e quando VOLTAM.
+
+    Grava no log (tela + logs/supervisorio.log) e na tabela eventos, que o dashboard mostra.
+    O criterio e o mesmo da tela: ultima leitura com mais de STALE_S segundos (pela hora da medicao).
+    """
 
     def __init__(self):
         super().__init__(daemon=True)
         self.stale = {}
+        self.parou_em = {}
+
+    def registrar(self, con, dev, tipo, quando, detalhe):
+        con.execute("INSERT INTO eventos (device_id, seq, tipo, ts_origem, ts_recebimento, detalhe)"
+                    " VALUES (?, NULL, ?, ?, ?, ?)", (dev, tipo, iso(quando), iso(quando), detalhe))
 
     def run(self):
+        primeira_volta = True
         while True:
             time.sleep(1)
             agora = datetime.now(timezone.utc)
@@ -346,14 +371,25 @@ class VigiaStale(threading.Thread):
                     linha = ultima_leitura(con, dev)
                     idade = idade_s(linha, agora)
                     agora_stale = idade > STALE_S
-                    if agora_stale != self.stale.get(dev, False):
+                    # na primeira volta so aprende o estado: dispositivo parado antes do backend subir
+                    # nao gera um evento falso de "parou agora"
+                    if not primeira_volta and agora_stale != self.stale.get(dev, False):
                         if agora_stale:
-                            log.info(f"[STALE] {dev}: sem dado novo ha {idade:.1f}s (ultimo ts_origem "
-                                     f"{linha['ts_origem']}) - dashboard em modo degradado")
+                            ultimo = parse_iso(linha["ts_origem"])
+                            self.parou_em[dev] = ultimo
+                            log.info(f"[SEM DADOS] {dev}: dados pararam de chegar; ultimo dado medido em "
+                                     f"{linha['ts_origem']} (ha {idade:.1f}s) - dashboard em modo degradado")
+                            self.registrar(con, dev, "sem_dados", ultimo,
+                                           f"último dado medido há {idade:.0f} s")
                         else:
-                            log.info(f"[RECUPERADO] {dev}: dado atual de novo (idade {idade:.1f}s); "
+                            inicio = self.parou_em.pop(dev, None)
+                            duracao = (agora - inicio).total_seconds() if inicio else None
+                            texto = f"{duracao:.0f} s sem dados" if duracao is not None else "dados voltaram"
+                            log.info(f"[DADOS VOLTARAM] {dev}: dado atual de novo ({texto}); "
                                      f"lacunas restantes: {calcular_lacunas(con, dev)['amostras_faltando']}")
+                            self.registrar(con, dev, "dados_voltaram", agora, texto)
                     self.stale[dev] = agora_stale
+            primeira_volta = False
 
 
 # ------------------------------------------------------------------- API
@@ -459,6 +495,15 @@ def rede(request: Request):
 # O navegador do celular nao fala MQTT puro (TCP); ele fala HTTP. O backend recebe a
 # leitura por HTTP e publica no broker com QoS 1, no mesmo topico que um ESP32 usaria.
 # Dali para frente o caminho e o mesmo: broker -> assinante -> banco -> dashboard.
+def token_valido(request):
+    """Authorization: Bearer <token>. Comparacao em tempo constante (hmac) para nao vazar o token."""
+    if not GATEWAY_TOKEN:
+        return False                       # sem token configurado, a ponte fica fechada
+    cabecalho = request.headers.get("authorization", "")
+    enviado = cabecalho[7:] if cabecalho.lower().startswith("bearer ") else ""
+    return hmac.compare_digest(enviado.encode(), GATEWAY_TOKEN.encode())
+
+
 @app.post("/api/gateway/{tipo}")
 async def gateway(tipo: str, request: Request):
     try:
@@ -471,6 +516,10 @@ async def gateway(tipo: str, request: Request):
         request.state.resposta = {"erro": erro}
         return JSONResponse(request.state.resposta, status_code=status)
 
+    if not token_valido(request):
+        log.info(f"[SEGURANCA] gateway: envio RECUSADO de {request.client.host if request.client else '?'}"
+                 " (sem token ou token errado)")
+        return recusar(401, "não autorizado: falta a chave de acesso (token) ou ela está errada")
     if tipo not in ("corrente", "alarme", "status"):
         return recusar(404, f"tipo desconhecido: {tipo}")
     device_id = str(corpo.get("device_id", ""))
