@@ -20,6 +20,14 @@ Todos os comandos abaixo rodam na pasta do projeto (`moinho-mqtt`).
 
 ### Jeito A — Docker
 
+Na primeira vez, crie o arquivo de senhas (`.env`, que não vai para o Git):
+
+```bash
+python scripts/preparar_segredos.py
+```
+
+Depois:
+
 ```bash
 docker compose up --build
 ```
@@ -259,7 +267,9 @@ página do celular mostra um aviso vermelho.
      (ele já escuta na rede);
    - jeito A: `docker compose up --build broker backend`.
 3. No topo do dashboard aparece "📱 no celular, abra **http://IP-DO-PC:8085/celular**".
-   Digite esse endereço no navegador do celular.
+   Digite esse endereço no navegador do celular. Na primeira vez ele pede a **chave de
+   acesso**: é o valor de `GATEWAY_TOKEN` no arquivo `.env` do PC. Sem ela, o PC recusa os
+   envios (HTTP 401), e as leituras ficam guardadas no celular até a chave certa.
 4. Abra `localhost:8085` no PC. O dashboard mostra o **moinho01**, que agora é o seu
    celular: mexa na carga no celular e veja a corrente mudar no PC. A faixa
    **Dispositivos**, no topo, mostra todos os dispositivos ao vivo; clique num deles para

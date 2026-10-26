@@ -22,7 +22,8 @@ comunicação volta, o histórico é reconstruído sem duplicados nem buracos.
 
 ## Como rodar
 
-Pré-requisito: Docker com Compose.
+Pré-requisito: Docker com Compose. Antes da primeira vez, crie o arquivo de senhas
+(`.env`, fora do Git) com `python scripts/preparar_segredos.py`.
 
 ```bash
 docker compose up --build
@@ -162,4 +163,5 @@ Detalhes e justificativas em [docs/DECISOES.md](docs/DECISOES.md).
 | [docs/DECISOES.md](docs/DECISOES.md) | por que MQTT, por que proteção local, por que consistência eventual |
 | [docs/arquitetura.md](docs/arquitetura.md) | diagrama Mermaid do fluxo e da sequência de falha |
 | [EVIDENCIAS.md](EVIDENCIAS.md) | roteiro de teste, logs esperados e prints |
-| [Atividade Integradora Automacao Industrial v4.pdf](docs/Atividade%20Integradora%20Automacao%20Industrial%20v4.pdf) | documento do projeto atualizado com esta entrega (páginas 4 a 9) |
+| [docs/TOLERANCIA_E_SEGURANCA.md](docs/TOLERANCIA_E_SEGURANCA.md) | tempo de dado desatualizado, log de falha, proteções, análise de segurança, onde ficam as senhas |
+| [Atividade Integradora Automacao Industrial v5.pdf](docs/Atividade%20Integradora%20Automacao%20Industrial%20v5.pdf) | documento do projeto: comunicação e consistência (páginas 4 a 9) e tolerância a falhas e segurança (páginas 10 a 15) |
