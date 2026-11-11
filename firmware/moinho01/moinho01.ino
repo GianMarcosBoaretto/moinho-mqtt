@@ -20,7 +20,9 @@
   Placa: ESP32 Dev Module (core esp32 da Espressif 3.x)
 */
 
-#define ARDUINOJSON_USE_LONG_LONG 1   // seq e 64 bits
+// seq e 64 bits. Sem comentario na mesma linha do define: a ArduinoJson cola o valor
+// desta macro em nomes internos, e o comentario quebra a compilacao.
+#define ARDUINOJSON_USE_LONG_LONG 1
 #include <WiFi.h>
 #include <MQTT.h>
 #include <ArduinoJson.h>
