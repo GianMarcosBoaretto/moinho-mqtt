@@ -110,9 +110,13 @@ class Protecao:
             elif self.cont_sobre >= self.confirmacao:
                 self.disparo = "sobrecorrente"
 
-    def rearmar(self):
+    def rearmar(self, causa_presente=False):
+        """Como no codigo da bancada: so rearma se a causa do desarme sumiu."""
         if self.botoeira:
             log.info("[PROTECAO] rearme recusado: botoeira de emergencia ainda pressionada")
+            return False
+        if causa_presente:
+            log.info("[PROTECAO] rearme recusado: a causa do desarme continua (carga alta ou sensor em falha)")
             return False
         self.disparo = None
         self.cont_sobre = self.cont_falha = 0
@@ -263,7 +267,8 @@ def aplicar_comando(cmd, sensor, protecao):
     elif cmd == "liberar":
         protecao.botoeira = False
     elif cmd == "rearmar":
-        protecao.rearmar()
+        # com o rele aberto o motor para e a corrente medida cai a zero; a "causa" e a carga
+        protecao.rearmar(causa_presente=sensor.modo in ("sobrecorrente", "falha_sensor"))
     else:
         log.info(f"[CMD] comando desconhecido: {cmd!r}")
         return

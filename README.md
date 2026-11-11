@@ -95,20 +95,29 @@ cd simulador && ../.venv/Scripts/python simulador.py
 
 ### Firmware (ESP32)
 
-`firmware/moinho01/` — abrir `moinho01.ino` na Arduino IDE, ajustar `config.h` (Wi-Fi e
-IP do broker) e instalar as bibliotecas **MQTT** (Joel Gaehwiler, ≥ 2.5) e **ArduinoJson**
-(≥ 7). Placa: *ESP32 Dev Module*. **Não rode o simulador e a placa ao mesmo tempo:** os
-dois publicam como `moinho01`.
+A bancada segue o material da aula (`docs/bancada/`: diagramas e passo a passo). São duas fases:
+
+1. **Fase 1, sem rede:** `firmware/g2_moinho_teste/g2_moinho_teste.ino`, o código da aula, para
+   montar e testar potenciômetro, LEDs, rearme, relé e motor.
+2. **Fase 2, sistema completo:** `firmware/moinho01/`, o firmware do grupo, ligado ao
+   supervisório. Abrir `moinho01.ino` na Arduino IDE, ajustar `config.h` (Wi-Fi e IP do PC),
+   copiar `secrets.exemplo.h` para `secrets.h` (senha do Wi-Fi e `MQTT_SENHA_NO` do `.env`)
+   e instalar as bibliotecas **MQTT** (Joel Gaehwiler, ≥ 2.5) e **ArduinoJson** (≥ 7).
+   Placa: *ESP32 Dev Module*. **Não rode o simulador ao mesmo tempo:** os dois publicam como
+   `moinho01` (suba com `rodar-local.ps1 -SemSimulador`).
 
 | Função | Pino | Ligação na bancada |
 |---|---|---|
 | Sensor (potenciômetro) | GPIO 34 | cursor do potenciômetro entre 3V3 e GND |
-| Relé | GPIO 26 | módulo relé; HIGH = motor liga |
-| Botoeira (contato auxiliar NF) | GPIO 27 | NF para GND; o contato principal fica em série com a bobina do relé |
+| Relé (Songle + BC548) | GPIO 26 | HIGH = bobina energizada = motor liga (contato NO) |
+| Emergência (aviso) | GPIO 27 | jumper para GND; tirar o jumper = emergência |
 | Rearme | GPIO 14 | botão NA para GND |
+| LED verde | GPIO 19 | aceso = operando |
+| LED vermelho | GPIO 18 | aceso = desarmado ou emergência |
 
-Girar o potenciômetro acima de ~67% do curso (> 100 A) desarma. Encostar nas pontas
-(< 2% ou > 98%) simula sensor rompido → `falha_sensor`.
+Mesma escala da fase 1: o curso todo do potenciômetro vai de 0 a 150 A. Acima de ~2/3 do
+curso (> 100 A), desarma. No fim do curso (leitura saturada) simula sensor em curto →
+`falha_sensor`. O rearme só funciona com a corrente abaixo do limite, como na fase 1.
 
 ## Estrutura
 

@@ -92,20 +92,34 @@ struct Protecao {
     else if (contSobre >= AMOSTRAS_CONFIRMACAO) disparo = SOBRECORRENTE;
   }
 
-  void rearmar() {
+  // Como no codigo da bancada (fase 1): so rearma se a causa sumiu. Com a corrente ainda
+  // acima do limite (ou sem leitura valida), o rearme e recusado e o motor continua parado.
+  void rearmar(bool valida, float corrente) {
     if (botoeira) { Serial.println("[PROTECAO] rearme recusado: botoeira pressionada"); return; }
+    if (!valida || corrente > LIMITE_A) {
+      Serial.printf("[PROTECAO] rearme recusado: corrente %.1f A ainda acima do limite\n", corrente);
+      return;
+    }
     disparo = SEM_MOTIVO;
     contSobre = contFalha = 0;
+    Serial.println("[PROTECAO] rearme");
   }
 };
 
+// Mesma escala do codigo da bancada: o curso todo do potenciometro = 0 a FUNDO_ESCALA_A.
+// So a leitura saturada no topo (sensor em curto / fora de escala) conta como falha de sensor.
 bool lerSensor(float& corrente) {
   uint32_t soma = 0;
   for (int i = 0; i < 8; i++) soma += analogRead(PINO_SENSOR);
   int bruto = soma / 8;
-  if (bruto < ADC_MIN_VALIDO || bruto > ADC_MAX_VALIDO) return false;   // fio rompido / curto
-  corrente = (bruto - ADC_MIN_VALIDO) * FUNDO_ESCALA_A / (ADC_MAX_VALIDO - ADC_MIN_VALIDO);
-  return true;
+  corrente = bruto * FUNDO_ESCALA_A / 4095.0f;
+  return bruto < ADC_SATURADO;
+}
+
+// LED verde = motor liberado; LED vermelho = desarmado ou emergencia (igual a fase 1)
+void atualizarLeds(bool releFechado) {
+  digitalWrite(PINO_LED_VERDE, releFechado ? HIGH : LOW);
+  digitalWrite(PINO_LED_VERMELHO, releFechado ? LOW : HIGH);
 }
 
 void tarefaProtecao(void*) {
@@ -121,14 +135,15 @@ void tarefaProtecao(void*) {
 
     // entradas fisicas
     p.botoeira = digitalRead(PINO_BOTOEIRA) == HIGH;   // NF aberto ou fio solto = emergencia
-    contRearme = digitalRead(PINO_REARME) == LOW ? contRearme + 1 : 0;
-    if (contRearme == 3) p.rearmar();                  // 300 ms pressionado (debounce)
 
     // 1. mede, decide e atua - sem rede
     float corrente = 0;
     bool valida = lerSensor(corrente);
+    contRearme = digitalRead(PINO_REARME) == LOW ? contRearme + 1 : 0;
+    if (contRearme == 3) p.rearmar(valida, corrente);  // 300 ms pressionado (debounce)
     p.avaliar(valida, corrente);
     digitalWrite(PINO_RELE, p.releFechado() ? HIGH : LOW);
+    atualizarLeds(p.releFechado());
 
     bool mudou = p.estado() != estadoAntes || p.disparo != motivoAntes;
     estadoAtual = p.estado();
@@ -267,6 +282,9 @@ void setup() {
   digitalWrite(PINO_RELE, LOW);                // comeca desligado ate a primeira leitura
   pinMode(PINO_BOTOEIRA, INPUT_PULLUP);
   pinMode(PINO_REARME, INPUT_PULLUP);
+  pinMode(PINO_LED_VERDE, OUTPUT);
+  pinMode(PINO_LED_VERMELHO, OUTPUT);
+  atualizarLeds(false);                          // vermelho ate a protecao liberar o motor
   analogReadResolution(12);
 
   // seq sobrevive a reinicio: o numero do boot fica gravado na flash (NVS)

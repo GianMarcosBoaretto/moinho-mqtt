@@ -161,6 +161,12 @@ const prot = {
   },
   rearmar() {
     if (this.botoeira) { registrar("info", "rearme recusado: emergência ainda acionada"); return; }
+    // como na bancada: só rearma se a causa sumiu (com o relé aberto a corrente medida é zero,
+    // então a causa é a carga ajustada ou o sensor em falha)
+    if (falhaSensor || Number($("carga").value) > LIMITE_A) {
+      registrar("info", "rearme recusado: a carga ainda está acima do limite ou o sensor em falha");
+      return;
+    }
     this.disparo = null; this.contSobre = this.contFalha = 0;
   },
 };

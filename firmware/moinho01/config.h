@@ -24,14 +24,16 @@
 #define PERIODO_TELEMETRIA_MS 1000
 #define TAMANHO_BUFFER        300
 
-// Bancada: potenciometro simula o sensor de corrente.
-// 2% a 98% do curso = 0 a 150 A. Encostar nas pontas simula sensor rompido/em curto.
+// Bancada: potenciometro simula o sensor de corrente (mesma escala do g2_moinho_teste).
+// Curso todo = 0 a 150 A; o limite de 100 A fica em ~2/3 do curso.
+// Encostar no fim do curso (leitura saturada) simula sensor em curto -> falha_sensor.
 #define FUNDO_ESCALA_A  150.0f
-#define ADC_MIN_VALIDO  82     // ~2% de 4095
-#define ADC_MAX_VALIDO  4013   // ~98% de 4095
+#define ADC_SATURADO    4090   // leitura media >= isto = fora de escala
 
-// Pinos
-#define PINO_SENSOR    34   // ADC1 (o ADC2 nao funciona com Wi-Fi ligado)
-#define PINO_RELE      26   // HIGH = bobina energizada = motor liga
-#define PINO_BOTOEIRA  27   // contato AUXILIAR NF da botoeira para GND (o contato principal fica em serie com o rele)
-#define PINO_REARME    14   // botao NA para GND
+// Pinos (iguais ao diagrama de ligacao da aula: G2-moinho-aula13)
+#define PINO_SENSOR        34   // ADC1 (o ADC2 nao funciona com Wi-Fi ligado)
+#define PINO_RELE          26   // HIGH = bobina energizada = motor liga (rele no NO)
+#define PINO_BOTOEIRA      27   // jumper para GND = normal; sem jumper = emergencia (contato auxiliar NF)
+#define PINO_REARME        14   // botao NA para GND
+#define PINO_LED_VERDE     19   // operando (motor liberado)
+#define PINO_LED_VERMELHO  18   // desarmado ou emergencia

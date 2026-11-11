@@ -78,7 +78,7 @@ O simulador aceita comandos que imitam o que aconteceria na bancada:
 |---|---|---|
 | `sobrecorrente` | carga pesada no moinho (~128 A) | em ~0,3 s: **DESARMADO**, motivo sobrecorrente, corrente cai para ~0 |
 | `normal` | carga volta ao normal (~72 A) | nada visível: o desarme fica **travado** até rearmar |
-| `rearmar` | botão de rearme | volta a **OPERANDO** (se a causa ainda existir, desarma de novo) |
+| `rearmar` | botão de rearme | volta a **OPERANDO**; se a causa ainda existir (carga alta, sensor em falha), o rearme é **recusado** |
 | `emergencia` | apertar a botoeira | **EMERGENCIA**, motor para |
 | `liberar` | soltar a botoeira | sai da emergência; se havia desarme, continua desarmado |
 | `falha_sensor` | sensor rompido | **DESARMADO**, motivo falha de sensor; a corrente aparece como "falha" |
@@ -139,7 +139,7 @@ Faça na ordem. Cada teste diz o que fazer e o que tem que aparecer. Se aparecer
 | Faça | Resultado esperado |
 |---|---|
 | Envie `sobrecorrente` | **DESARMADO**, motivo sobrecorrente; corrente ~0 A; "Desarme" na tabela de eventos; pico acima da linha de 100 A no gráfico |
-| Envie `rearmar` (sem enviar `normal` antes) | volta a OPERANDO e **desarma de novo** em ~0,3 s, porque a causa continua |
+| Envie `rearmar` (sem enviar `normal` antes) | rearme **recusado**: continua DESARMADO, e o log do simulador diz "a causa do desarme continua" (igual à bancada, que não rearma com a corrente alta) |
 | Envie `normal` e depois `rearmar` | **OPERANDO**, ~72 A, evento "Rearme" |
 
 ### T3 — Emergência e falha de sensor
@@ -216,24 +216,35 @@ O que cada print precisa mostrar está em [EVIDENCIAS.md](EVIDENCIAS.md).
 
 ## 8. Com o ESP32 de verdade
 
-1. Na Arduino IDE, instale as bibliotecas **MQTT** (Joel Gaehwiler) e **ArduinoJson**.
-2. Abra `firmware/moinho01/moinho01.ino` e ajuste `config.h`: nome e senha do Wi-Fi e
-   `MQTT_HOST` com o **IP do PC** onde o broker roda (`ipconfig` no Windows).
-3. Grave na placa (*ESP32 Dev Module*) e abra o Monitor Serial em 115200.
-4. **Pare o simulador** antes: os dois publicam como `moinho01`.
-5. Os testes são os mesmos da seção 6, trocando os comandos pela bancada:
+A montagem segue o material da aula em `docs/bancada/` (diagrama de ligação, diagrama do relé
+e passo a passo). Primeiro monte e teste com o código da **fase 1**,
+`firmware/g2_moinho_teste/g2_moinho_teste.ino`, que não usa rede. Depois grave o firmware do grupo:
 
-| Comando do simulador | Na bancada |
-|---|---|
-| `sobrecorrente` | girar o potenciômetro acima de ~2/3 do curso |
-| `normal` | voltar o potenciômetro |
-| `rearmar` | apertar o botão de rearme (GPIO 14) por meio segundo |
-| `emergencia` / `liberar` | apertar / soltar a botoeira |
-| `falha_sensor` | girar o potenciômetro até o fim do curso (qualquer ponta) |
-| derrubar o broker | desligar o broker no PC, ou o roteador Wi-Fi |
+1. Na Arduino IDE, instale as bibliotecas **MQTT** (Joel Gaehwiler) e **ArduinoJson**.
+2. Ligue o jumper do **GPIO27 ao GND**. Sem ele, o firmware entende que a emergência está
+   apertada e mantém o motor parado.
+3. Em `firmware/moinho01/`, ajuste o `config.h`: nome da rede Wi-Fi e `MQTT_HOST` com o
+   **IP do PC** (`ipconfig`). Copie `secrets.exemplo.h` para `secrets.h` e preencha a senha do
+   Wi-Fi e a `MQTT_SENHA` (o valor de `MQTT_SENHA_NO` no `.env` do PC).
+4. No PC, suba sem o simulador, que usa o mesmo nome do ESP32:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\rodar-local.ps1 -SemSimulador
+   ```
+5. Grave na placa (*ESP32 Dev Module*) e abra o Monitor Serial em 115200.
+6. Os testes são os mesmos da seção 6, trocando os comandos pela bancada:
+
+| Comando do simulador | Na bancada | LEDs |
+|---|---|---|
+| `sobrecorrente` | girar o potenciômetro acima de ~2/3 do curso (> 100 A) | vermelho |
+| `normal` | voltar o potenciômetro | continua vermelho até rearmar |
+| `rearmar` | apertar o rearme (GPIO 14) por meio segundo, **com a corrente baixa** | verde |
+| `emergencia` / `liberar` | tirar / recolocar o jumper do GPIO27 | vermelho / volta ao estado anterior |
+| `falha_sensor` | girar o potenciômetro até o fim do curso (leitura saturada) | vermelho |
+| derrubar o broker | fechar a janela do broker, ou desligar o Wi-Fi | não mudam: a proteção é local |
 
 No T4, a prova mais forte: com o broker desligado, gire o potenciômetro. **O relé tem que
-abrir** e o Monitor Serial mostra "SEM REDE".
+abrir**, o LED vermelho acende e o Monitor Serial mostra "SEM REDE". O ESP32 só conecta em
+rede 2,4 GHz sem página de login; o mais simples é rotear a internet do celular.
 
 > No PC, o Firewall do Windows pode bloquear a porta 1883 para a placa. Se o ESP32 não
 > conectar, libere a porta 1883 (TCP) na rede privada.
